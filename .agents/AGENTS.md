@@ -133,6 +133,14 @@ Frontend (React)  ←→  ipc.ts (invoke/listen)  ←→  Tauri IPC  ←→  com
    - 在 `src/lib/ipc.ts` 中添加对应的前端 IPC 函数
 6. **错误处理**：平台操作使用 `PlatformError`，命令返回 `Result<T, String>`
 7. **异步运行时**：项目使用自定义 Tokio runtime（在 `main.rs` 中创建），不要使用 `#[tokio::main]`
+8. **代码质量与 Clippy 规范**：
+   - **未使用的公共 API/特征方法**：在二进制 Crate 中，未被调用的 `pub` 函数/特征方法，或仅占位使用的 trait/enum 需显式标记 `#[allow(dead_code)]` 以防编译报错。
+   - **排序优化**：优先使用 `entries.sort_by_key(|b| std::cmp::Reverse(b.size))` 进行降序排序，而非手写闭包 cmp。
+   - **整除判断**：使用 `.is_multiple_of(N)` 替代 `count % N == 0`。
+   - **文件迭代器**：对 `fs::read_dir` 等 Result 迭代器直接使用 `.flatten()` 消除嵌套的 `if let Ok(entry)`。
+   - **路径与字符串处理**：移除前缀或后缀时，使用 `.strip_prefix('~')` 等标准 API 替代手动切片（如 `&pattern[1..]`）。
+   - **消除无意义的 Unit 绑定**：对于返回 `()` 类型的函数（如 `skip_current_dir()`），不要使用 `let _ = ...;` 进行显式忽略绑定，直接调用即可。
+
 
 ### TypeScript 代码
 

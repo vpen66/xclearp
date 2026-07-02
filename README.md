@@ -110,6 +110,19 @@ pnpm tauri build
 
 ---
 
+## 📝 开发与代码规范
+
+为确保 CI/CD 流程顺利通过，在编写 Rust 后端代码时，请严格遵守以下质量与 Clippy 规范：
+
+- ⚠️ **无用代码处理**：在二进制 Crate 中，如果定义了尚未调用或预留的 `pub` 方法、结构体或特征（Trait），请显式添加 `#[allow(dead_code)]`。
+- ⚡ **排序规范**：进行降序排序时，推荐使用 `entries.sort_by_key(|b| std::cmp::Reverse(b.size))` 替代 `entries.sort_by(|a, b| b.size.cmp(&a.size))`。
+- 🔢 **整除性检查**：用 `.is_multiple_of(10)` 代替 `entries_count % 10 == 0` 进行整除判断。
+- 📂 **文件夹扁平化迭代**：对 `fs::read_dir` 的结果遍历时，使用 `for entry in entries.flatten()` 代替嵌套的 `if let Ok` 校验。
+- ✂️ **前缀移除**：使用 `.strip_prefix('~')` 代替手动切片（如 `&pattern[1..]`）来安全地去除字符串前缀。
+- 🚫 **消除 Unit 绑定**：对于返回 `()`（即 unit 类型）的方法（例如 `walker.skip_current_dir()`），直接调用即可，无需使用 `let _ = ...` 承接。
+
+---
+
 ## 🤖 CI/CD 与自动化发布
 
 项目包含完整的企业级 GitHub Actions 配置：
