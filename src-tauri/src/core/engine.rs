@@ -85,6 +85,7 @@ impl Default for OperationRegistry {
 pub struct CleanEngine {
     scanner: Arc<Scanner>,
     cleaner: Arc<Cleaner>,
+    #[allow(dead_code)]
     event_bus: Arc<EventBus>,
     whitelist: Arc<std::sync::RwLock<Whitelist>>,
     op_registry: Arc<OperationRegistry>,
@@ -159,6 +160,7 @@ impl CleanEngine {
     }
 
     /// Get a reference to the event bus (for consumers to subscribe to events).
+    #[allow(dead_code)]
     pub fn event_bus(&self) -> &Arc<EventBus> {
         &self.event_bus
     }

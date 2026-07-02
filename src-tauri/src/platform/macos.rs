@@ -69,9 +69,9 @@ impl PlatformProvider for MacOSProvider {
     }
 
     fn resolve_path(&self, pattern: &str) -> Option<PathBuf> {
-        if pattern.starts_with("~/") {
+        if let Some(stripped) = pattern.strip_prefix("~/") {
             let home = Self::home_dir();
-            Some(home.join(&pattern[2..]))
+            Some(home.join(stripped))
         } else if pattern.starts_with('~') {
             Some(Self::home_dir())
         } else {

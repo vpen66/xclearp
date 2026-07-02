@@ -80,12 +80,11 @@ impl PlatformProvider for WindowsProvider {
         }
 
         // Handle ~ for home directory
+        if let Some(stripped) = pattern.strip_prefix("~/") {
+            return Some(Self::home_dir().join(stripped));
+        }
         if pattern.starts_with('~') {
-            let home = Self::home_dir();
-            if pattern.len() > 1 {
-                return Some(home.join(&pattern[2..]));
-            }
-            return Some(home);
+            return Some(Self::home_dir());
         }
 
         let path = PathBuf::from(pattern);

@@ -86,6 +86,7 @@ pub enum CleanEvent {
     Cancelled { op_id: String },
 }
 
+#[allow(dead_code)]
 impl CleanEvent {
     /// Returns the operation ID associated with this event.
     pub fn op_id(&self) -> &str {

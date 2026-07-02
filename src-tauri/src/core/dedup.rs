@@ -8,6 +8,7 @@ pub struct PathDedup {
     seen: HashSet<PathBuf>,
 }
 
+#[allow(dead_code)]
 impl PathDedup {
     /// Create a new deduplicator.
     pub fn new() -> Self {

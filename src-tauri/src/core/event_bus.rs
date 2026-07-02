@@ -22,6 +22,7 @@ impl EventBus {
     }
 
     /// Get a clone of the sender for use in multiple tasks.
+    #[allow(dead_code)]
     pub fn sender(&self) -> mpsc::UnboundedSender<CleanEvent> {
         self.sender.clone()
     }

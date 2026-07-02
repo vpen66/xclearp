@@ -83,15 +83,15 @@ impl PlatformProvider for LinuxProvider {
     }
 
     fn resolve_path(&self, pattern: &str) -> Option<PathBuf> {
-        if pattern.starts_with("~/") {
+        if let Some(stripped) = pattern.strip_prefix("~/") {
             let home = Self::home_dir();
-            Some(home.join(&pattern[2..]))
+            Some(home.join(stripped))
         } else if pattern.starts_with('~') {
             Some(Self::home_dir())
-        } else if pattern.starts_with("$XDG_CACHE_HOME") {
-            Some(Self::xdg_cache_home().join(&pattern["$XDG_CACHE_HOME".len()..]))
-        } else if pattern.starts_with("$XDG_DATA_HOME") {
-            Some(Self::xdg_data_home().join(&pattern["$XDG_DATA_HOME".len()..]))
+        } else if let Some(stripped) = pattern.strip_prefix("$XDG_CACHE_HOME") {
+            Some(Self::xdg_cache_home().join(stripped))
+        } else if let Some(stripped) = pattern.strip_prefix("$XDG_DATA_HOME") {
+            Some(Self::xdg_data_home().join(stripped))
         } else {
             let path = PathBuf::from(pattern);
             if path.is_absolute() {
