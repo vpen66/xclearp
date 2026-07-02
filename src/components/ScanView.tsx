@@ -549,7 +549,7 @@ export default function ScanView({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white tracking-tight">扫描清理</h2>
+          <h2 className="text-2xl font-bold text-gray-50 tracking-tight">扫描清理</h2>
           <p className="text-sm text-gray-400 mt-1">
             快速扫描并安全清理系统缓存、残留垃圾文件与无效临时文件。
           </p>
@@ -595,7 +595,7 @@ export default function ScanView({
             {/* Total Files */}
             <div className="p-4 rounded-xl bg-gray-900/60 border border-gray-800 space-y-1 backdrop-blur-md hover:border-gray-700/60 transition-colors">
               <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">发现垃圾文件</span>
-              <p className="text-xl font-extrabold text-white font-mono">
+              <p className="text-xl font-extrabold text-gray-50 font-mono">
                 {isScanning
                   ? `${scanProgress?.scannedFiles ?? 0} 个`
                   : `${scanSummary?.totalFiles ?? 0} 个`}

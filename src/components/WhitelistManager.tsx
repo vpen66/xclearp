@@ -4,8 +4,10 @@ import { useState, useEffect } from "react";
 import { getWhitelist, updateWhitelist, type Whitelist } from "../lib/ipc";
 import { Trash2, Plus, AlertCircle, Loader2, ToggleLeft, ToggleRight, Download, Upload, HelpCircle, Eye, EyeOff } from "lucide-react";
 import Tooltip from "./Tooltip";
+import { useToast } from "./Toast";
 
 export default function WhitelistManager() {
+  const toast = useToast();
   const [whitelist, setWhitelist] = useState<Whitelist | null>(null);
   const [newPath, setNewPath] = useState("");
   const [loading, setLoading] = useState(true);
@@ -32,12 +34,12 @@ export default function WhitelistManager() {
           };
           await updateWhitelist(wl);
           setWhitelist(wl);
-          alert("导入白名单成功！");
+          toast.success("导入白名单成功！");
         } else {
-          alert("非法的白名单 JSON 格式，期望是一个对象");
+          toast.error("非法的白名单 JSON 格式，期望是一个对象");
         }
       } catch (err) {
-        alert("导入失败: " + err);
+        toast.error("导入失败: " + err);
       }
     };
     reader.readAsText(file);
@@ -78,6 +80,7 @@ export default function WhitelistManager() {
 
     if (whitelist.global_excludes.includes(trimmed)) {
       setNewPath("");
+      toast.info("该路径已存在于全局排除白名单中。");
       return;
     }
 
@@ -91,8 +94,10 @@ export default function WhitelistManager() {
       await updateWhitelist(updated);
       setWhitelist(updated);
       setNewPath("");
+      toast.success(`已将 "${trimmed}" 成功添加到全局排除白名单中！`);
     } catch (e) {
       setError("添加失败，无法更新白名单");
+      toast.error("添加白名单失败，请重试");
     }
   };
 

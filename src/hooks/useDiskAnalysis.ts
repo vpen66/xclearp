@@ -59,11 +59,29 @@ function normalizePath(p: string): string {
 // Global cache for directory sizes computed during the session
 const directorySizeCache: Record<string, number> = {};
 
+function isWindowsDrivePath(p: string): boolean {
+  return /^[a-zA-Z]:/.test(p);
+}
+
 function getParentPath(path: string): string {
-  if (!path || path === "/") return "";
-  const parts = path.split("/").filter(Boolean);
-  if (parts.length <= 1) return "/";
-  return "/" + parts.slice(0, -1).join("/");
+  if (!path || path === "/" || path === "") return "";
+  
+  const normalized = path.replace(/\\/g, "/");
+  
+  if (/^[a-zA-Z]:\/?$/.test(normalized)) {
+    return "";
+  }
+  
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length <= 1) {
+    return isWindowsDrivePath(normalized) ? "" : "/";
+  }
+  
+  if (isWindowsDrivePath(normalized)) {
+    return parts.slice(0, -1).join("/");
+  } else {
+    return "/" + parts.slice(0, -1).join("/");
+  }
 }
 
 export function useDiskAnalysis(): UseDiskAnalysisReturn {
@@ -304,9 +322,9 @@ export function useDiskAnalysis(): UseDiskAnalysisReturn {
     }
   }, [startFlushTimer, stopFlushTimer]);
 
-  const fetchDiskUsage = useCallback(async () => {
+  const fetchDiskUsage = useCallback(async (path?: string) => {
     try {
-      const data = await getDiskUsage();
+      const data = await getDiskUsage(path);
       setDiskUsage(data);
     } catch (err) {
       console.warn("getDiskUsage failed:", err);
@@ -321,10 +339,9 @@ export function useDiskAnalysis(): UseDiskAnalysisReturn {
   // Load entries when currentPath changes
   useEffect(() => {
     console.log("[useDiskAnalysis] useEffect for currentPath triggered:", currentPath);
-    if (currentPath) {
-      fetchEntries(currentPath);
-    }
-  }, [currentPath, fetchEntries]);
+    fetchEntries(currentPath);
+    fetchDiskUsage(currentPath);
+  }, [currentPath, fetchEntries, fetchDiskUsage]);
 
   // Update directory size cache with the current directory's total size
   useEffect(() => {

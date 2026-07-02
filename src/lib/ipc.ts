@@ -40,6 +40,11 @@ export async function addCustomRule(rule: CleanRule): Promise<boolean> {
   return invoke<boolean>("add_custom_rule", { rule });
 }
 
+/** Delete a custom rule. */
+export async function deleteRule(id: string): Promise<boolean> {
+  return invoke<boolean>("delete_rule", { id });
+}
+
 /** Import custom rules from JSON. */
 export async function importRules(rules: CleanRule[]): Promise<boolean> {
   return invoke<boolean>("import_rules", { rules });
@@ -83,9 +88,9 @@ export async function listDirectory(path: string): Promise<FileEntry[]> {
   return invoke<FileEntry[]>("list_directory", { path });
 }
 
-/** Get disk usage for the current mount. */
-export async function getDiskUsage(): Promise<DiskUsage> {
-  return invoke<DiskUsage>("get_disk_usage");
+/** Get disk usage for the specified path (or default mount if omitted). */
+export async function getDiskUsage(path?: string): Promise<DiskUsage> {
+  return invoke<DiskUsage>("get_disk_usage", { path });
 }
 
 /** Get user's home directory path. */
@@ -150,5 +155,21 @@ export async function openPath(path: string): Promise<void> {
 /** Get current platform name. */
 export async function getPlatform(): Promise<string> {
   return invoke<string>("get_platform");
+}
+
+export interface PermissionStatus {
+  hasPermission: boolean;
+  isAdmin: boolean;
+  platform: string;
+}
+
+/** Check current disk permissions status (FDA on macOS, Admin on Windows) */
+export async function checkDiskPermissions(): Promise<PermissionStatus> {
+  return invoke<PermissionStatus>("check_disk_permissions");
+}
+
+/** Open system settings privacy pane or UAC settings */
+export async function openSystemSettingsPane(): Promise<void> {
+  return invoke("open_system_settings_pane");
 }
 

@@ -7,6 +7,7 @@ import {
   addCustomRule as ipcAddCustomRule,
   addGroup as ipcAddGroup,
   deleteGroup as ipcDeleteGroup,
+  deleteRule as ipcDeleteRule,
 } from "../lib/ipc";
 import type { RuleGroup, CleanRule } from "../types/index";
 
@@ -19,6 +20,7 @@ export interface UseGroupsReturn {
   addCustomRule: (rule: CleanRule) => Promise<void>;
   addGroup: (name: string, description: string, icon: string) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
+  deleteRule: (id: string) => Promise<void>;
 }
 
 export function useGroups(): UseGroupsReturn {
@@ -50,6 +52,7 @@ export function useGroups(): UseGroupsReturn {
       await refresh();
     } catch (err) {
       setError(String(err));
+      throw err;
     }
   }, [refresh]);
 
@@ -60,6 +63,7 @@ export function useGroups(): UseGroupsReturn {
       await refresh();
     } catch (err) {
       setError(String(err));
+      throw err;
     }
   }, [refresh]);
 
@@ -70,6 +74,7 @@ export function useGroups(): UseGroupsReturn {
       await refresh();
     } catch (err) {
       setError(String(err));
+      throw err;
     }
   }, [refresh]);
 
@@ -80,6 +85,18 @@ export function useGroups(): UseGroupsReturn {
       await refresh();
     } catch (err) {
       setError(String(err));
+      throw err;
+    }
+  }, [refresh]);
+
+  const deleteRule = useCallback(async (id: string) => {
+    setError(null);
+    try {
+      await ipcDeleteRule(id);
+      await refresh();
+    } catch (err) {
+      setError(String(err));
+      throw err;
     }
   }, [refresh]);
 
@@ -92,5 +109,6 @@ export function useGroups(): UseGroupsReturn {
     addCustomRule,
     addGroup,
     deleteGroup,
+    deleteRule,
   };
 }

@@ -34,11 +34,13 @@ import {
   ShieldCheck,
   ExternalLink,
 } from "lucide-react";
+import { useToast } from "./Toast";
 
 interface DiskAnalysisProps {
   groups: RuleGroup[];
-  onAddRule: (rule: CleanRule) => void;
+  onAddRule: (rule: CleanRule) => void | Promise<void>;
 }
+
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -94,27 +96,59 @@ function formatRelativeTime(iso: string | null): string {
   return y === now.getFullYear() ? `${m}月${d}日` : `${y}/${m}/${d}`;
 }
 
+function isWindowsDrivePath(p: string): boolean {
+  return /^[a-zA-Z]:/.test(p);
+}
+
 function buildBreadcrumbSegments(path: string): { label: string; path: string }[] {
-  if (!path || path === "/") return [{ label: "/", path: "/" }];
-  const parts = path.split("/").filter(Boolean);
-  const segs: { label: string; path: string }[] = [{ label: "/", path: "/" }];
+  if (!path) return [{ label: "此电脑", path: "" }];
+  if (path === "/") return [{ label: "/", path: "/" }];
+  
+  const normalized = path.replace(/\\/g, "/");
+  const isWin = isWindowsDrivePath(normalized);
+  const parts = normalized.split("/").filter(Boolean);
+  
+  const segs: { label: string; path: string }[] = [];
+  if (isWin) {
+    segs.push({ label: "此电脑", path: "" });
+  } else {
+    segs.push({ label: "/", path: "/" });
+  }
+  
   let acc = "";
-  for (const part of parts) {
-    acc += "/" + part;
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (i === 0 && isWin) {
+      acc = part; // e.g. "C:"
+    } else {
+      acc = acc ? (acc + "/" + part) : (isWin ? part : "/" + part);
+    }
     segs.push({ label: part, path: acc });
   }
   return segs;
 }
 
-function makeRuleFromEntry(entry: FileEntry, groupId: string): CleanRule {
+function makeRuleFromEntry(entry: FileEntry, groupId: string, platform: string): CleanRule {
+  const isWin = platform === "win32" || platform === "windows";
+  const targetPlatform = isWin ? "windows" : (platform === "darwin" || platform === "macos" ? "macos" : "linux");
+  
+  let cleanPath = entry.path;
+  if (isWin) {
+    cleanPath = cleanPath.replace(/\//g, "\\");
+    // Remove leading slash if it precedes a drive letter on Windows (e.g. \C:\ -> C:\)
+    if (cleanPath.startsWith("\\") && /^[a-zA-Z]:/.test(cleanPath.slice(1))) {
+      cleanPath = cleanPath.slice(1);
+    }
+  }
+
   return {
     id: crypto.randomUUID(),
     name: entry.name,
     group: groupId,
-    description: entry.isDir ? `目录: ${entry.path}` : `文件: ${entry.path}`,
-    platforms: ["macos", "linux", "windows"],
-    paths: [entry.path],
-    file_patterns: entry.isDir ? [] : [entry.name],
+    description: entry.isDir ? `目录: ${cleanPath}` : `文件: ${cleanPath}`,
+    platforms: [targetPlatform as any],
+    paths: [cleanPath],
+    file_patterns: entry.isDir ? ["*"] : [entry.name],
     exclude_patterns: [],
     min_age_hours: null,
     max_size_mb: null,
@@ -126,6 +160,7 @@ function makeRuleFromEntry(entry: FileEntry, groupId: string): CleanRule {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
+  const toast = useToast();
   const {
     currentPath,
     entries,
@@ -207,13 +242,21 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
   }, []);
 
   const handleAddToGroup = useCallback(
-    (entry: FileEntry, groupId: string) => {
-      const rule = makeRuleFromEntry(entry, groupId);
-      onAddRule(rule);
+    async (entry: FileEntry, groupId: string) => {
+      const rule = makeRuleFromEntry(entry, groupId, platform);
+      try {
+        await onAddRule(rule);
+        const group = groups.find((g) => g.id === groupId);
+        const groupName = group ? group.name : "指定分组";
+        toast.success(`成功将 "${entry.name}" 添加到分组规则 "${groupName}" 中！`);
+      } catch (e) {
+        console.error("Failed to add to group:", e);
+        toast.error(`添加失败: ${e}`);
+      }
       setCtxMenu(null);
       setShowGroupSubmenu(false);
     },
-    [onAddRule],
+    [onAddRule, platform, groups, toast],
   );
 
   const handleAddToWhitelist = useCallback(async (entry: FileEntry) => {
@@ -225,17 +268,17 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
           global_excludes: [...wl.global_excludes, entry.path],
         };
         await updateWhitelist(updated);
-        alert(`已将 "${entry.name}" 成功添加到全局排除白名单中，今后将忽略该路径！`);
+        toast.success(`已将 "${entry.name}" 成功添加到全局排除白名单中，今后将忽略该路径！`);
         removeEntryLocally(entry.path);
       } else {
-        alert("该路径已存在于全局排除白名单中。");
+        toast.info("该路径已存在于全局排除白名单中。");
       }
     } catch (e) {
       console.error("Failed to add to whitelist:", e);
-      alert("添加到白名单失败，请重试");
+      toast.error("添加到白名单失败，请重试");
     }
     setCtxMenu(null);
-  }, [removeEntryLocally]);
+  }, [removeEntryLocally, toast]);
 
   const handleRowClick = useCallback(
     (entry: FileEntry) => {
@@ -321,7 +364,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-gray-100 flex items-center gap-2">
           磁盘分析
           {scanStatus === "scanning" && (
             <IconLoader className="animate-spin text-blue-400" />
@@ -433,8 +476,8 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
                 onClick={() => handleBreadcrumbClick(seg.path)}
                 className={`px-1.5 py-0.5 rounded transition-colors flex items-center gap-1 ${
                   i === breadcrumbs.length - 1
-                    ? "text-white font-medium bg-gray-800"
-                    : "text-gray-400 hover:text-white hover:bg-gray-800/60"
+                    ? "text-gray-50 font-medium bg-gray-800"
+                    : "text-gray-400 hover:text-gray-50 hover:bg-gray-800/60"
                 }`}
               >
                 {i === 0 ? <IconHome /> : seg.label}
@@ -446,14 +489,36 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
 
       {/* Error */}
       {error && (
-        <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm flex items-center justify-between">
-          <span>{error}</span>
-          <button
-            onClick={refresh}
-            className="px-3 py-1 rounded text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors"
-          >
-            重试
-          </button>
+        <div className="px-5 py-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold flex items-center gap-2">
+              <IconAlert className="shrink-0 text-red-400" />
+              无法访问此路径
+            </span>
+            <button
+              onClick={refresh}
+              className="px-3 py-1 rounded-lg text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors font-medium"
+            >
+              重试
+            </button>
+          </div>
+          <p className="text-xs font-mono bg-red-500/5 p-2 rounded-lg border border-red-500/10 whitespace-pre-wrap">{error}</p>
+          {(error.includes("拒绝访问") || error.includes("Access is denied") || error.includes("permission denied") || error.includes("os error 5")) && (
+            <div className="pt-3 border-t border-red-500/20 text-xs text-gray-400 space-y-2">
+              <p className="font-semibold text-gray-200 flex items-center gap-1.5">
+                <span>💡</span> 为什么部分路径会被拒绝访问？
+              </p>
+              <p className="leading-relaxed">
+                在 Windows 系统中，诸如 <code className="px-1 py-0.5 rounded bg-gray-800 text-gray-300 font-mono text-[10px]">Documents and Settings</code> 或 <code className="px-1 py-0.5 rounded bg-gray-800 text-gray-300 font-mono text-[10px]">System Volume Information</code> 等路径属于<b>系统保护的虚拟占位路径（Junction 软链接）</b>或核心系统数据区。
+              </p>
+              <p className="leading-relaxed">
+                这些路径是由系统为了与老旧软件保持兼容性而创建的。为了防止无限递归扫描或误删，Windows 默认拒绝任何普通用户和应用对它们的读取访问。这是系统的正常安全机制，您无需为此担心。
+              </p>
+              <p className="leading-relaxed font-medium text-gray-300">
+                若需扫描其他受限的常规文件，请尝试<b>以管理员身份运行</b>此程序，或在设置中授予完整的磁盘操作权限。
+              </p>
+            </div>
+          )}
         </div>
       )}
 

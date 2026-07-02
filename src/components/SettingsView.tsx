@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
+import { getVersion } from "@tauri-apps/api/app";
+import { useUpdater } from "../hooks/useUpdater";
 import type { RuleGroup, CleanRule } from "../types/index";
 import RuleEditor from "./RuleEditor";
 import WhitelistManager from "./WhitelistManager";
+import { useToast } from "./Toast";
+import { checkDiskPermissions, openSystemSettingsPane, type PermissionStatus, getPlatform } from "../lib/ipc";
 import {
   Sliders,
   ListCollapse,
@@ -24,18 +28,27 @@ import {
   ShieldCheck,
   Hammer,
   Download,
-  Upload
+  Upload,
+  Sun,
+  Moon,
+  Monitor,
+  ShieldAlert,
+  RefreshCw,
+  ArrowUpCircle
 } from "lucide-react";
 
 interface SettingsViewProps {
   groups: RuleGroup[];
   loading: boolean;
   onToggleRule: (rule: CleanRule) => void;
-  onAddRule: (rule: CleanRule) => void;
-  onEditRule: (rule: CleanRule) => void;
+  onAddRule: (rule: CleanRule) => void | Promise<void>;
+  onEditRule: (rule: CleanRule) => void | Promise<void>;
+  onDeleteRule?: (id: string) => Promise<void>;
   onAddGroup: (name: string, description: string, icon: string) => Promise<void>;
   onDeleteGroup: (id: string) => Promise<void>;
   onImportRules?: (rules: CleanRule[]) => Promise<void>;
+  generalSettings: any;
+  setGeneralSettings: React.Dispatch<React.SetStateAction<any>>;
 }
 
 type SettingsTab = "general" | "rules" | "whitelist" | "about";
@@ -58,20 +71,79 @@ export default function SettingsView({
   onToggleRule,
   onAddRule,
   onEditRule,
+  onDeleteRule,
   onAddGroup,
   onDeleteGroup,
   onImportRules,
+  generalSettings,
+  setGeneralSettings,
 }: SettingsViewProps) {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const [editingRule, setEditingRule] = useState<CleanRule | null>(null);
   const [showNewRule, setShowNewRule] = useState<string | null>(null);
+  const [deleteTargetRule, setDeleteTargetRule] = useState<CleanRule | null>(null);
+  const [deleteTargetGroup, setDeleteTargetGroup] = useState<{ id: string; name: string } | null>(null);
+
+  // App updater integration
+  const {
+    status: updaterStatus,
+    updateInfo,
+    downloadProgress,
+    errorMsg: updaterError,
+    checkForUpdates,
+    installUpdate,
+  } = useUpdater();
+
+  const [appVersion, setAppVersion] = useState("0.1.0");
+  const [platformStr, setPlatformStr] = useState("macOS (darwin-x64)");
+
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch((err) => {
+      console.warn("Failed to get version from tauri:", err);
+    });
+    getPlatform().then((p) => {
+      const prettyPlatform = p === "macos" ? "macOS" : p === "windows" ? "Windows" : p === "linux" ? "Linux" : p;
+      setPlatformStr(prettyPlatform);
+    }).catch((err) => {
+      console.warn("Failed to get platform from tauri:", err);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "about" && updaterStatus === "idle") {
+      checkForUpdates();
+    }
+  }, [activeTab, updaterStatus, checkForUpdates]);
 
   // Group creation modal state
   const [showNewGroupModal, setShowNewGroupModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupDesc, setNewGroupDesc] = useState("");
   const [newGroupIcon, setNewGroupIcon] = useState("folder");
+
+  // Disk permissions check state
+  const [permissionStatus, setPermissionStatus] = useState<PermissionStatus | null>(null);
+  const [checkingPermissions, setCheckingPermissions] = useState(false);
+
+  const fetchPermissions = async () => {
+    setCheckingPermissions(true);
+    try {
+      const status = await checkDiskPermissions();
+      setPermissionStatus(status);
+    } catch (e) {
+      console.error("Failed to check disk permissions:", e);
+    } finally {
+      setCheckingPermissions(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "general") {
+      fetchPermissions();
+    }
+  }, [activeTab]);
 
   const handleImportRulesClick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -111,28 +183,6 @@ export default function SettingsView({
     URL.revokeObjectURL(url);
   };
 
-  // Local storage for general settings
-  const [generalSettings, setGeneralSettings] = useState(() => {
-    const saved = localStorage.getItem("xclearp_settings");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        // use defaults
-      }
-    }
-    return {
-      startup: false,
-      minToTray: true,
-      notifyOnComplete: true,
-      deepScan: false,
-    };
-  });
-
-  useEffect(() => {
-    localStorage.setItem("xclearp_settings", JSON.stringify(generalSettings));
-  }, [generalSettings]);
-
   const toggleSetting = (key: keyof typeof generalSettings) => {
     setGeneralSettings((prev: any) => ({
       ...prev,
@@ -146,29 +196,23 @@ export default function SettingsView({
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) return;
+    const groupName = newGroupName.trim();
     try {
-      await onAddGroup(newGroupName.trim(), newGroupDesc.trim(), newGroupIcon);
+      await onAddGroup(groupName, newGroupDesc.trim(), newGroupIcon);
+      toast.success(`成功创建规则分组 "${groupName}"！`);
       setNewGroupName("");
       setNewGroupDesc("");
       setNewGroupIcon("folder");
       setShowNewGroupModal(false);
     } catch (e) {
       console.error("Failed to create group:", e);
+      toast.error(`创建规则分组失败: ${e}`);
     }
   };
 
-  const handleDeleteGroupClick = async (e: React.MouseEvent, id: string, name: string) => {
+  const handleDeleteGroupClick = (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation(); // Prevent toggling accordion
-    if (confirm(`确认要删除规则组 "${name}" 吗？该组下的所有自定义规则也将被物理删除。`)) {
-      try {
-        await onDeleteGroup(id);
-        if (expandedGroup === id) {
-          setExpandedGroup(null);
-        }
-      } catch (err) {
-        console.error("Failed to delete group:", err);
-      }
-    }
+    setDeleteTargetGroup({ id, name });
   };
 
   const renderIcon = (iconName: string, className = "w-5 h-5") => {
@@ -216,7 +260,7 @@ export default function SettingsView({
     <div className="space-y-6">
       {/* Title */}
       <div>
-        <h2 className="text-2xl font-bold text-white tracking-tight">系统设置</h2>
+        <h2 className="text-2xl font-bold text-gray-50 tracking-tight">系统设置</h2>
         <p className="text-sm text-gray-400 mt-1">
           在这里管理您的个人偏好、自启动行为以及清理扫描的规则库。
         </p>
@@ -277,7 +321,7 @@ export default function SettingsView({
           {activeTab === "general" && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-base font-semibold text-white">通用配置</h3>
+                <h3 className="text-base font-semibold text-gray-100">通用配置</h3>
                 <p className="text-xs text-gray-500 mt-0.5">控制程序启动与核心清理行为</p>
               </div>
 
@@ -355,7 +399,7 @@ export default function SettingsView({
                       <label className="text-sm font-medium text-gray-200 cursor-pointer" onClick={() => toggleSetting("deepScan")}>
                         深度检索模式
                       </label>
-                      <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold">
                         <AlertCircle size={10} /> 耗时较长
                       </span>
                     </div>
@@ -374,6 +418,130 @@ export default function SettingsView({
                     />
                   </button>
                 </div>
+
+                {/* Theme Selector */}
+                <div className="flex items-start justify-between p-4 rounded-xl bg-gray-800/20 border border-gray-800/50 hover:bg-gray-800/30 transition-all duration-150">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-200">
+                      界面主题
+                    </label>
+                    <p className="text-xs text-gray-400">切换界面的外观显示色彩风格</p>
+                  </div>
+                  <div className="flex bg-gray-950 p-1 rounded-lg border border-gray-850 shrink-0">
+                    <button
+                      onClick={() => setGeneralSettings((prev: any) => ({ ...prev, theme: "light" }))}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                        generalSettings.theme === "light"
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "text-gray-400 hover:text-gray-200"
+                      }`}
+                    >
+                      <Sun size={14} />
+                      白天
+                    </button>
+                    <button
+                      onClick={() => setGeneralSettings((prev: any) => ({ ...prev, theme: "dark" }))}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                        generalSettings.theme === "dark" || !generalSettings.theme
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "text-gray-400 hover:text-gray-200"
+                      }`}
+                    >
+                      <Moon size={14} />
+                      夜晚
+                    </button>
+                    <button
+                      onClick={() => setGeneralSettings((prev: any) => ({ ...prev, theme: "system" }))}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                        generalSettings.theme === "system"
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "text-gray-400 hover:text-gray-200"
+                      }`}
+                    >
+                      <Monitor size={14} />
+                      跟随系统
+                    </button>
+                  </div>
+                </div>
+
+                {/* Disk Permissions Card */}
+                <div className="p-4 rounded-xl bg-gray-800/20 border border-gray-800/50 space-y-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-medium text-gray-200">系统磁盘访问权限</h4>
+                      <p className="text-xs text-gray-400">由于操作系统沙盒与权限保护，部分系统缓存的检索和清理需要额外的授权。</p>
+                    </div>
+                    {checkingPermissions ? (
+                      <span className="text-xs text-gray-500 animate-pulse shrink-0">检测中...</span>
+                    ) : permissionStatus?.hasPermission ? (
+                      <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold shrink-0">
+                        <ShieldCheck size={12} />
+                        {permissionStatus.platform === "macos" ? "已授予完全磁盘访问" : "已以管理员身份运行"}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 font-semibold shrink-0">
+                        <ShieldAlert size={12} />
+                        {permissionStatus?.platform === "macos" ? "未授予完全磁盘访问" : "权限不足 (未以管理员运行)"}
+                      </span>
+                    )}
+                  </div>
+
+                  {!checkingPermissions && !permissionStatus?.hasPermission && (
+                    <div className="p-3.5 rounded-lg bg-gray-950/60 border border-gray-850 text-xs text-gray-400 space-y-3">
+                      {permissionStatus?.platform === "macos" ? (
+                        <>
+                          <div className="space-y-1">
+                            <p className="font-semibold text-gray-300">💡 如何在 macOS 上授予“完全磁盘访问权限”？</p>
+                            <ol className="list-decimal list-inside space-y-1 text-gray-400 pl-1">
+                              <li>点击下方按钮打开<b>“隐私与安全性”</b>设置面板。</li>
+                              <li>在列表中找到<b>“完全磁盘访问权限” (Full Disk Access)</b>。</li>
+                              <li>开启 <b>XClearp</b> 的权限开关。若列表里没有 XClearp，可点击左下角的 <code className="font-mono bg-gray-850 px-1 py-0.5 rounded text-gray-300">+</code> 按钮并添加本程序。</li>
+                              <li>设置完成后，<b>重启程序</b>即可生效。</li>
+                            </ol>
+                          </div>
+                          <div className="pt-1">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await openSystemSettingsPane();
+                                } catch (e) {
+                                  alert(`打开系统设置失败: ${e}`);
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition-all shadow-md shadow-blue-500/10 flex items-center gap-1.5"
+                            >
+                              打开隐私与安全性设置
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="space-y-1">
+                            <p className="font-semibold text-gray-300">💡 如何以管理员权限运行？</p>
+                            <ul className="list-disc list-inside space-y-1 text-gray-400 pl-1">
+                              <li>关闭当前程序，在 XClearp 快捷方式或 <code className="font-mono bg-gray-850 px-1 py-0.5 rounded text-gray-300">xclearp.exe</code> 文件上<b>右键单击</b>，选择 <b>“以管理员身份运行”</b>。</li>
+                              <li>若希望每次打开都默认以管理员身份运行：右键属性 &rarr; 兼容性 &rarr; 勾选 <b>“以管理员身份运行此程序”</b>，点击确定。</li>
+                            </ul>
+                          </div>
+                          <div className="pt-1 flex gap-2">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await openSystemSettingsPane();
+                                } catch (e) {
+                                  alert(`打开设置失败: ${e}`);
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-semibold transition-all border border-gray-700"
+                            >
+                              配置 UAC 控制台
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -382,7 +550,7 @@ export default function SettingsView({
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-base font-semibold text-white">清理规则库</h3>
+                  <h3 className="text-base font-semibold text-gray-100">清理规则库</h3>
                   <p className="text-xs text-gray-500 mt-0.5">配置与增删您的文件清理分组及其包含的文件匹配规则</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -531,6 +699,17 @@ export default function SettingsView({
                                   >
                                     <Edit2 size={13} />
                                   </button>
+
+                                  {/* Delete Button */}
+                                  {onDeleteRule && (
+                                    <button
+                                      onClick={() => setDeleteTargetRule(rule)}
+                                      className="text-gray-500 hover:text-red-400 transition-colors p-1.5 rounded-md hover:bg-gray-800/80"
+                                      title="删除规则"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  )}
                                 </div>
                               ))
                             )}
@@ -568,13 +747,13 @@ export default function SettingsView({
                   </svg>
                 </div>
                 <span className="absolute -bottom-2 -right-2 px-1.5 py-0.5 bg-blue-500 text-[10px] font-bold text-white rounded-md tracking-wider">
-                  v0.1.0
+                  v{appVersion}
                 </span>
               </div>
 
               {/* Description */}
               <div className="text-center space-y-2 max-w-sm">
-                <h3 className="text-lg font-bold text-white tracking-tight">XClearp System Utility</h3>
+                <h3 className="text-lg font-bold text-gray-100 tracking-tight">XClearp System Utility</h3>
                 <p className="text-xs text-gray-400 leading-relaxed">
                   跨平台桌面系统清理利器。基于 Tauri + React 构建，致力于提供极速、低内存占用且安全的系统缓存与冗余垃圾清理方案。
                 </p>
@@ -590,15 +769,106 @@ export default function SettingsView({
                 </div>
                 <div className="flex items-center justify-between text-xs border-b border-gray-800 pb-2">
                   <span className="text-gray-400">运行平台</span>
-                  <span className="text-gray-300 font-medium">macOS (darwin-x64)</span>
+                  <span className="text-gray-300 font-medium">{platformStr}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-400">最新状态</span>
-                  <span className="text-gray-400 hover:text-blue-400 cursor-pointer transition-colors">
-                    已是最新版本
-                  </span>
+                  {updaterStatus === 'checking' && (
+                    <span className="text-blue-400 flex items-center gap-1 font-medium">
+                      <RefreshCw size={11} className="animate-spin" /> 正在检查更新...
+                    </span>
+                  )}
+                  {updaterStatus === 'upToDate' && (
+                    <span
+                      onClick={() => checkForUpdates()}
+                      className="text-gray-400 hover:text-blue-400 cursor-pointer flex items-center gap-1 font-medium transition-colors"
+                    >
+                      已是最新版本 <RefreshCw size={10} />
+                    </span>
+                  )}
+                  {updaterStatus === 'available' && (
+                    <span className="text-amber-400 flex items-center gap-1 font-medium">
+                      发现新版本 v{updateInfo?.version}
+                    </span>
+                  )}
+                  {updaterStatus === 'downloading' && (
+                    <span className="text-blue-400 font-medium">
+                      正在下载更新...
+                    </span>
+                  )}
+                  {updaterStatus === 'error' && (
+                    <span
+                      onClick={() => checkForUpdates()}
+                      className="text-red-400 hover:text-red-300 cursor-pointer flex items-center gap-1 font-medium transition-colors"
+                      title={updaterError || "未知错误"}
+                    >
+                      检查失败，点击重试 <RefreshCw size={10} />
+                    </span>
+                  )}
+                  {updaterStatus === 'idle' && (
+                    <span
+                      onClick={() => checkForUpdates()}
+                      className="text-blue-400 hover:text-blue-300 cursor-pointer flex items-center gap-1 font-medium transition-colors"
+                    >
+                      检查更新 <RefreshCw size={10} />
+                    </span>
+                  )}
                 </div>
               </div>
+
+              {/* Updater Action Card */}
+              {(updaterStatus === 'available' || updaterStatus === 'downloading') && (
+                <div className="w-full max-w-sm border border-amber-500/20 bg-amber-500/5 rounded-xl p-4 space-y-3 animate-fade-in">
+                  <div className="flex items-start gap-3">
+                    <ArrowUpCircle className="text-amber-400 mt-0.5 shrink-0" size={18} />
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-bold text-gray-200">
+                        版本更新可用于 XClearp
+                      </h4>
+                      <p className="text-[11px] text-gray-400 leading-normal">
+                        最新版本: v{updateInfo?.version}
+                      </p>
+                      {updateInfo?.body && (
+                        <div className="text-[10px] text-gray-500 bg-black/10 rounded p-1.5 max-h-20 overflow-y-auto mt-1 border border-gray-800/40">
+                          {updateInfo.body}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {updaterStatus === 'downloading' ? (
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex justify-between text-[10px] text-gray-400">
+                        <span>正在下载并安装...</span>
+                        <span>
+                          {downloadProgress.total
+                            ? `${Math.round((downloadProgress.downloaded / downloadProgress.total) * 100)}%`
+                            : '计算中...'}
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-800/50 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="bg-gradient-to-r from-blue-500 to-indigo-600 h-full transition-all duration-150"
+                          style={{
+                            width: `${
+                              downloadProgress.total
+                                ? Math.round((downloadProgress.downloaded / downloadProgress.total) * 100)
+                                : 0
+                            }%`
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={installUpdate}
+                      className="w-full py-2 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-lg text-xs font-bold transition-all duration-200 shadow-md shadow-amber-500/10 flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                    >
+                      <Download size={13} /> 立即下载并重启更新
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Footer text */}
               <div className="text-[10px] text-gray-600 text-center mt-4">
@@ -615,7 +885,7 @@ export default function SettingsView({
           <div className="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl w-full max-w-md m-4 overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-850 bg-gray-950/20">
-              <h3 className="text-sm font-bold text-white">新建清理规则分组</h3>
+              <h3 className="text-sm font-bold text-gray-100">新建清理规则分组</h3>
               <button
                 onClick={() => setShowNewGroupModal(false)}
                 className="text-gray-500 hover:text-gray-300 transition-colors p-1"
@@ -698,20 +968,112 @@ export default function SettingsView({
           rule={editingRule}
           defaultGroup={showNewRule ?? undefined}
           groups={groups}
-          onSave={(rule) => {
-            if (editingRule) {
-              onEditRule(rule);
-            } else {
-              onAddRule(rule);
+          onSave={async (rule) => {
+            try {
+              if (editingRule) {
+                await onEditRule(rule);
+                toast.success(`成功更新清理规则 "${rule.name}"！`);
+              } else {
+                await onAddRule(rule);
+                toast.success(`成功添加清理规则 "${rule.name}"！`);
+              }
+              setEditingRule(null);
+              setShowNewRule(null);
+            } catch (e) {
+              console.error("Failed to save rule:", e);
+              toast.error(`保存清理规则失败: ${e}`);
             }
-            setEditingRule(null);
-            setShowNewRule(null);
           }}
           onCancel={() => {
             setEditingRule(null);
             setShowNewRule(null);
           }}
         />
+      )}
+
+      {/* Delete Rule Confirmation Modal */}
+      {deleteTargetRule && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm p-5 rounded-xl bg-gray-900 border border-gray-800 shadow-2xl animate-fade-in">
+            <h3 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
+              <ShieldAlert className="text-red-500" size={18} /> 确认删除规则
+            </h3>
+            <p className="text-sm text-gray-400 mb-1">确定要删除清理规则吗？</p>
+            <p className="text-sm text-gray-200 bg-gray-950/60 rounded px-3 py-2 mb-3 break-all font-mono text-xs">
+              {deleteTargetRule.name}
+            </p>
+            <p className="text-[11px] text-gray-500 mb-4 leading-relaxed">
+              此操作将从您的自定义清理规则中永久移除此规则，并且不可撤销。
+            </p>
+            <div className="flex justify-end gap-2 text-xs">
+              <button
+                onClick={() => setDeleteTargetRule(null)}
+                className="px-4 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    if (onDeleteRule) {
+                      await onDeleteRule(deleteTargetRule.id);
+                    }
+                  } catch (e) {
+                    alert(`删除规则失败: ${e}`);
+                  } finally {
+                    setDeleteTargetRule(null);
+                  }
+                }}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Group Confirmation Modal */}
+      {deleteTargetGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm p-5 rounded-xl bg-gray-900 border border-gray-800 shadow-2xl animate-fade-in">
+            <h3 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
+              <ShieldAlert className="text-red-500" size={18} /> 确认删除规则组
+            </h3>
+            <p className="text-sm text-gray-400 mb-1">确定要删除清理规则组吗？</p>
+            <p className="text-sm text-gray-200 bg-gray-950/60 rounded px-3 py-2 mb-3 break-all font-mono text-xs">
+              {deleteTargetGroup.name}
+            </p>
+            <p className="text-[11px] text-gray-500 mb-4 leading-relaxed">
+              该组下的所有自定义规则也将被物理删除，此操作不可撤销。
+            </p>
+            <div className="flex justify-end gap-2 text-xs">
+              <button
+                onClick={() => setDeleteTargetGroup(null)}
+                className="px-4 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    await onDeleteGroup(deleteTargetGroup.id);
+                    if (expandedGroup === deleteTargetGroup.id) {
+                      setExpandedGroup(null);
+                    }
+                  } catch (e) {
+                    alert(`删除规则组失败: ${e}`);
+                  } finally {
+                    setDeleteTargetGroup(null);
+                  }
+                }}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

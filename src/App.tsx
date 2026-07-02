@@ -1,6 +1,6 @@
 /** App — main layout integrating all components */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Page, CleanRule } from "./types/index";
 import { useGroups } from "./hooks/useGroups";
 import { useScanStream } from "./hooks/useScanStream";
@@ -13,9 +13,53 @@ import DiskAnalysis from "./components/DiskAnalysis";
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>("scan");
-  const { groups, loading, error: groupsError, updateRule, addCustomRule, addGroup, deleteGroup, refresh } = useGroups();
+  const { groups, loading, error: groupsError, updateRule, addCustomRule, addGroup, deleteGroup, deleteRule, refresh } = useGroups();
   const scan = useScanStream();
   const clean = useCleanStream(scan.removeFile);
+
+  const [generalSettings, setGeneralSettings] = useState(() => {
+    const saved = localStorage.getItem("xclearp_settings");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return {
+      startup: false,
+      minToTray: true,
+      notifyOnComplete: true,
+      deepScan: false,
+      theme: "system",
+    };
+  });
+
+  useEffect(() => {
+    localStorage.setItem("xclearp_settings", JSON.stringify(generalSettings));
+  }, [generalSettings]);
+
+  useEffect(() => {
+    const theme = generalSettings.theme || "system";
+    
+    const applyTheme = (t: "dark" | "light" | "system") => {
+      const root = document.documentElement;
+      root.classList.remove("theme-dark", "theme-light");
+      let actualTheme = t;
+      if (t === "system") {
+        const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        actualTheme = isDark ? "dark" : "light";
+      }
+      root.classList.add(`theme-${actualTheme}`);
+    };
+    
+    applyTheme(theme);
+    
+    if (theme === "system") {
+      const media = window.matchMedia("(prefers-color-scheme: dark)");
+      const listener = () => applyTheme("system");
+      media.addEventListener("change", listener);
+      return () => media.removeEventListener("change", listener);
+    }
+  }, [generalSettings.theme]);
 
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem("sidebarWidth");
@@ -126,9 +170,12 @@ function App() {
             onToggleRule={handleToggleRule}
             onAddRule={handleAddRule}
             onEditRule={handleEditRule}
+            onDeleteRule={deleteRule}
             onAddGroup={addGroup}
             onDeleteGroup={deleteGroup}
             onImportRules={handleImportRules}
+            generalSettings={generalSettings}
+            setGeneralSettings={setGeneralSettings}
           />
         );
 

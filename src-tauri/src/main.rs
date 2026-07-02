@@ -14,6 +14,11 @@ use core::engine::CleanEngine;
 use core::event_bus::EventBus;
 use platform::create_platform_provider;
 
+#[tauri::command]
+fn relaunch(app_handle: tauri::AppHandle) {
+    app_handle.restart();
+}
+
 fn main() {
     // Create a Tokio runtime and enter its context so that tokio-dependent APIs
     // (e.g. tokio::sync::mpsc channels) work inside the synchronous `setup` closure.
@@ -26,6 +31,7 @@ fn main() {
     tauri::async_runtime::set(runtime.handle().clone());
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // Create EventBus and get the receiver for event forwarding
             let (event_bus, mut rx) = EventBus::new();
@@ -62,6 +68,7 @@ fn main() {
             rules::delete_group,
             rules::get_whitelist,
             rules::update_whitelist,
+            rules::delete_rule,
             disk::list_directory,
             disk::get_disk_usage,
             disk::start_disk_analysis,
@@ -69,6 +76,9 @@ fn main() {
             disk::clear_disk_analysis_cache,
             disk::open_path,
             disk::get_platform,
+            disk::check_disk_permissions,
+            disk::open_system_settings_pane,
+            relaunch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
