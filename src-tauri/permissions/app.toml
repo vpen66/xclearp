@@ -93,6 +93,26 @@ identifier = "allow-get-platform"
 description = "Enables the get_platform command"
 commands.allow = ["get_platform"]
 
+[[permission]]
+identifier = "allow-check-disk-permissions"
+description = "Enables the check_disk_permissions command"
+commands.allow = ["check_disk_permissions"]
+
+[[permission]]
+identifier = "allow-open-system-settings-pane"
+description = "Enables the open_system_settings_pane command"
+commands.allow = ["open_system_settings_pane"]
+
+[[permission]]
+identifier = "allow-delete-rule"
+description = "Enables the delete_rule command"
+commands.allow = ["delete_rule"]
+
+[[permission]]
+identifier = "allow-relaunch"
+description = "Enables the relaunch command"
+commands.allow = ["relaunch"]
+
 [[permission-set]]
 identifier = "default"
 description = "Default permission set for XClearp app commands"
@@ -116,5 +136,9 @@ permissions = [
   "allow-clear-disk-analysis-cache",
   "allow-open-path",
   "allow-get-platform",
+  "allow-check-disk-permissions",
+  "allow-open-system-settings-pane",
+  "allow-delete-rule",
+  "allow-relaunch",
 ]
 

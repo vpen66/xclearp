@@ -32,7 +32,7 @@ export default function CleanProgress({
       {/* Header */}
       {(isCleaning || cleanSummary) && (
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">
+          <h2 className="text-lg font-semibold text-gray-100">
             {isCleaning ? "正在清理..." : "清理完成"}
           </h2>
           {isCleaning && (
@@ -61,7 +61,7 @@ export default function CleanProgress({
             <span className="text-gray-400">
               {cleanProgress?.deletedFiles ?? 0} / {totalTargets} 文件
             </span>
-            <span className="text-white font-semibold">{progressPct}%</span>
+            <span className="text-gray-50 font-semibold">{progressPct}%</span>
           </div>
 
           {/* Bar */}
@@ -89,19 +89,19 @@ export default function CleanProgress({
         <div className="px-5 py-5 rounded-xl bg-gradient-to-r from-green-600/10 to-emerald-600/10 border border-green-500/20">
           <div className="flex items-center gap-2 mb-4">
             <span className="text-2xl">✅</span>
-            <span className="text-white font-semibold">清理完成</span>
+            <span className="text-gray-50 font-semibold">清理完成</span>
           </div>
           <div className="flex items-center gap-8">
             <div>
-              <p className="text-2xl font-bold text-white">{cleanSummary.totalDeleted}</p>
+              <p className="text-2xl font-bold text-gray-50">{cleanSummary.totalDeleted}</p>
               <p className="text-xs text-gray-400">已删除文件</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-white">{formatFileSize(cleanSummary.totalFreed)}</p>
+              <p className="text-2xl font-bold text-gray-50">{formatFileSize(cleanSummary.totalFreed)}</p>
               <p className="text-xs text-gray-400">已释放空间</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-white">{formatDuration(cleanSummary.durationMs)}</p>
+              <p className="text-2xl font-bold text-gray-50">{formatDuration(cleanSummary.durationMs)}</p>
               <p className="text-xs text-gray-400">清理耗时</p>
             </div>
           </div>

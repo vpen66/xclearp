@@ -253,9 +253,8 @@ jobs:
           # =================================================================
           # Required for Tauri's built-in auto-update feature.
           # Generate keys with: `pnpm tauri signer generate -w ~/.tauri/xclearp.key`
-          #
-          # TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          # TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
         with:
           # Upload artifacts to the Draft Release created in Phase 1

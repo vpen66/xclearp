@@ -250,3 +250,41 @@ pub async fn update_whitelist(
     *wl_guard = whitelist;
     Ok(true)
 }
+
+/// Delete a custom rule by its ID.
+#[command]
+pub async fn delete_rule(id: String) -> Result<bool, String> {
+    let custom_dir = get_custom_rules_dir()?;
+
+    // 1. Try to delete the rule file named custom_{id}.json
+    let custom_file = custom_dir.join(format!("custom_{}.json", id));
+    if custom_file.exists() {
+        fs::remove_file(custom_file)
+            .map_err(|e| format!("Failed to delete custom rule file: {}", e))?;
+        return Ok(true);
+    }
+
+    // 2. Look through other json files in custom_dir and remove the rule with matching id in-place.
+    if let Ok(entries) = fs::read_dir(&custom_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("json") {
+                if let Ok(content) = fs::read_to_string(&path) {
+                    if let Ok(mut rules) = serde_json::from_str::<Vec<CleanRule>>(&content) {
+                        if let Some(pos) = rules.iter().position(|r| r.id == id) {
+                            rules.remove(pos);
+                            if rules.is_empty() {
+                                let _ = fs::remove_file(&path);
+                            } else if let Ok(json) = serde_json::to_string_pretty(&rules) {
+                                let _ = fs::write(&path, json);
+                            }
+                            return Ok(true);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Err("Rule not found or could not be deleted".to_string())
+}

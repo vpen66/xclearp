@@ -27,6 +27,10 @@
     "allow-import-rules",
     "allow-clear-disk-analysis-cache",
     "allow-open-path",
-    "allow-get-platform"
+    "allow-get-platform",
+    "allow-check-disk-permissions",
+    "allow-open-system-settings-pane",
+    "allow-delete-rule",
+    "updater:default"
   ]
 }

@@ -2,18 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Dark theme base */
-html {
+/* Theme variables */
+:root, .theme-dark {
+  --gray-50: 249 250 251;
+  --gray-100: 243 244 246;
+  --gray-200: 229 231 235;
+  --gray-300: 209 213 219;
+  --gray-400: 156 163 175;
+  --gray-500: 107 114 128;
+  --gray-600: 75 85 99;
+  --gray-700: 55 65 81;
+  --gray-800: 31 41 55;
+  --gray-900: 17 24 39;
+  --gray-950: 3 7 18;
+}
+
+.theme-light {
+  --gray-50: 3 7 18;
+  --gray-100: 17 24 39;
+  --gray-200: 31 41 55;
+  --gray-300: 55 65 81;
+  --gray-400: 75 85 99;
+  --gray-500: 107 114 128;
+  --gray-600: 156 163 175;
+  --gray-700: 209 213 219;
+  --gray-800: 229 231 235;
+  --gray-900: 243 244 246;
+  --gray-950: 255 255 255;
+}
+
+html.theme-dark {
   color-scheme: dark;
+}
+
+html.theme-light {
+  color-scheme: light;
 }
 
 html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
-  background-color: #030712; /* gray-950 */
-  color: #f3f4f6; /* gray-100 */
+  background-color: rgb(var(--gray-950));
+  color: rgb(var(--gray-100));
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 /* Custom scrollbar globally for a consistent, premium look */
@@ -27,7 +60,7 @@ html, body, #root {
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.25); /* Subtle grey-400 thumb with 25% opacity */
+  background-color: rgb(var(--gray-400) / 0.25); /* Subtle grey-400 thumb with 25% opacity */
   border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: padding-box;
@@ -43,7 +76,7 @@ html, body, #root {
 
 /* Standard scrollbar for Firefox */
 * {
-  scrollbar-color: rgba(156, 163, 175, 0.25) transparent;
+  scrollbar-color: rgb(var(--gray-400) / 0.25) transparent;
   scrollbar-width: thin;
 }
 
@@ -138,3 +171,13 @@ html, body, #root {
   animation: progressShimmer 1.8s infinite linear;
 }
 
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-1rem) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

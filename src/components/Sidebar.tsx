@@ -29,7 +29,7 @@ export default function Sidebar({ currentPage, onNavigate, width }: SidebarProps
     >
       {/* App branding */}
       <div className={`py-5 border-b border-gray-700/50 ${isCollapsed ? "px-0 flex flex-col items-center justify-center gap-1" : "px-5"}`}>
-        <h1 className={`font-bold text-white tracking-tight flex items-center ${isCollapsed ? "justify-center text-lg" : "text-xl gap-2"}`}>
+        <h1 className={`font-bold text-gray-50 tracking-tight flex items-center ${isCollapsed ? "justify-center text-lg" : "text-xl gap-2"}`}>
           <span className="relative flex items-center justify-center w-6 h-6 shrink-0">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <defs>

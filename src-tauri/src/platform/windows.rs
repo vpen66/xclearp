@@ -73,10 +73,21 @@ impl PlatformProvider for WindowsProvider {
     }
 
     fn resolve_path(&self, pattern: &str) -> Option<PathBuf> {
-        // Handle environment variable patterns like %TEMP%, %LOCALAPPDATA%
-        if pattern.starts_with('%') && pattern.ends_with('%') {
-            let var_name = &pattern[1..pattern.len() - 1];
-            return Self::env_var(var_name).map(PathBuf::from);
+        // Handle environment variable patterns like %TEMP%, %LOCALAPPDATA% (with or without subdirectories)
+        if let Some(stripped) = pattern.strip_prefix('%') {
+            if let Some(end_idx) = stripped.find('%') {
+                let var_name = &stripped[..end_idx];
+                let remainder = &stripped[end_idx + 1..];
+                if let Some(var_val) = Self::env_var(var_name) {
+                    let mut resolved = PathBuf::from(var_val);
+                    let clean_remainder =
+                        remainder.trim_start_matches('\\').trim_start_matches('/');
+                    if !clean_remainder.is_empty() {
+                        resolved.push(clean_remainder);
+                    }
+                    return Some(resolved);
+                }
+            }
         }
 
         // Handle ~ for home directory

@@ -82,13 +82,125 @@ pub struct DiskUsage {
     pub mount_point: String,
 }
 
+#[cfg(windows)]
+pub fn get_windows_drives() -> Vec<String> {
+    use std::os::windows::ffi::OsStringExt;
+    extern "system" {
+        fn GetLogicalDriveStringsW(nBufferLength: u32, lpBuffer: *mut u16) -> u32;
+    }
+
+    let mut buffer = vec![0u16; 256];
+    let len = unsafe { GetLogicalDriveStringsW(buffer.len() as u32, buffer.as_mut_ptr()) };
+    if len == 0 {
+        return vec!["C:\\".to_string()];
+    }
+
+    let mut drives = Vec::new();
+    let mut start = 0;
+    for i in 0..(len as usize) {
+        if buffer[i] == 0 {
+            if start < i {
+                if let Ok(drive_os) = std::ffi::OsString::from_wide(&buffer[start..i]).into_string()
+                {
+                    drives.push(drive_os);
+                }
+            }
+            start = i + 1;
+        }
+    }
+    if drives.is_empty() {
+        drives.push("C:\\".to_string());
+    }
+    drives
+}
+
+#[cfg(windows)]
+fn get_disk_usage_for_path(path: &str) -> Result<DiskUsage, String> {
+    use std::os::windows::ffi::OsStrExt;
+
+    extern "system" {
+        fn GetDiskFreeSpaceExW(
+            lpDirectoryName: *const u16,
+            lpFreeBytesAvailableToCaller: *mut u64,
+            lpTotalNumberOfBytes: *mut u64,
+            lpTotalNumberOfFreeBytes: *mut u64,
+        ) -> i32;
+    }
+
+    let p = PathBuf::from(path);
+    let mut path_utf16: Vec<u16> = p.as_os_str().encode_wide().collect();
+    path_utf16.push(0);
+
+    let mut free_bytes_available: u64 = 0;
+    let mut total_bytes: u64 = 0;
+    let mut total_free_bytes: u64 = 0;
+
+    let res = unsafe {
+        GetDiskFreeSpaceExW(
+            path_utf16.as_ptr(),
+            &mut free_bytes_available,
+            &mut total_bytes,
+            &mut total_free_bytes,
+        )
+    };
+
+    if res != 0 {
+        let total = total_bytes;
+        let available = free_bytes_available;
+        let used = total.saturating_sub(available);
+        return Ok(DiskUsage {
+            total,
+            used,
+            available,
+            mount_point: path.to_string(),
+        });
+    }
+    Err("Failed to get disk usage".to_string())
+}
+
 /// 列出目录内容
 #[command]
 pub async fn list_directory(
     engine: tauri::State<'_, crate::core::engine::CleanEngine>,
     path: String,
 ) -> Result<Vec<FileEntry>, String> {
+    #[cfg(windows)]
+    let dir_path = {
+        let mut p = path.replace('/', "\\");
+        if p.len() == 2 && p.ends_with(':') {
+            p.push('\\');
+        }
+        PathBuf::from(p)
+    };
+    #[cfg(not(windows))]
     let dir_path = PathBuf::from(&path);
+
+    #[cfg(windows)]
+    if path.is_empty() || path == "/" {
+        let drives = get_windows_drives();
+        let mut entries = Vec::new();
+        for drive in drives {
+            let mut total = 0;
+            let mut used = 0;
+            if let Ok(usage) = get_disk_usage_for_path(&drive) {
+                total = usage.total;
+                used = usage.used;
+            }
+            entries.push(FileEntry {
+                name: drive.clone(),
+                path: drive,
+                size: used,
+                is_dir: true,
+                is_symlink: Some(false),
+                modified: None,
+                children_count: None,
+                calculating: Some(false),
+                is_whitelisted: None,
+            });
+        }
+        return Ok(entries);
+    }
+
     if !dir_path.exists() {
         return Err(format!("Path does not exist: {}", path));
     }
@@ -203,7 +315,70 @@ pub async fn start_disk_analysis(
     app: tauri::AppHandle,
     path: String,
 ) -> Result<(), String> {
+    #[cfg(windows)]
+    if path.is_empty() || path == "/" {
+        // Cancel the previous active analysis scan
+        {
+            let mut token_guard = state.cancel_token.lock().unwrap();
+            if let Some(old_token) = token_guard.take() {
+                old_token.cancel();
+            }
+            let new_token = CancellationToken::new();
+            *token_guard = Some(new_token);
+        }
+        let app_clone = app.clone();
+        let path_clone = path.clone();
+        tauri::async_runtime::spawn(async move {
+            let drives = get_windows_drives();
+            let mut entries_count = 0;
+            let start_time = std::time::Instant::now();
+            for drive in drives {
+                let mut total = 0;
+                let mut used = 0;
+                if let Ok(usage) = get_disk_usage_for_path(&drive) {
+                    total = usage.total;
+                    used = usage.used;
+                }
+                let entry = FileEntry {
+                    name: drive.clone(),
+                    path: drive.clone(),
+                    size: used,
+                    is_dir: true,
+                    is_symlink: Some(false),
+                    modified: None,
+                    children_count: None,
+                    calculating: Some(false),
+                    is_whitelisted: None,
+                };
+                let event = DiskEvent::EntryDiscovered {
+                    scan_path: path_clone.clone(),
+                    entry,
+                };
+                app_clone.emit("disk-event", &event).ok();
+                entries_count += 1;
+            }
+            let duration_ms = start_time.elapsed().as_millis() as u64;
+            let completed_event = DiskEvent::Completed {
+                path: path_clone,
+                total_entries: entries_count,
+                duration_ms,
+            };
+            app_clone.emit("disk-event", &completed_event).ok();
+        });
+        return Ok(());
+    }
+
+    #[cfg(windows)]
+    let dir_path = {
+        let mut p = path.replace('/', "\\");
+        if p.len() == 2 && p.ends_with(':') {
+            p.push('\\');
+        }
+        PathBuf::from(p)
+    };
+    #[cfg(not(windows))]
     let dir_path = PathBuf::from(&path);
+
     if !dir_path.exists() {
         let event = DiskEvent::Error {
             path: path.clone(),
@@ -453,11 +628,53 @@ pub async fn start_disk_analysis(
 
 /// 获取磁盘使用概况
 #[command]
-pub async fn get_disk_usage() -> Result<DiskUsage, String> {
-    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
+pub async fn get_disk_usage(path: Option<String>) -> Result<DiskUsage, String> {
+    let target_path = if let Some(ref p) = path {
+        if p.is_empty() || p == "/" {
+            #[cfg(windows)]
+            {
+                PathBuf::from("/")
+            }
+            #[cfg(not(windows))]
+            dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"))
+        } else {
+            #[cfg(windows)]
+            {
+                let mut win_p = p.replace('/', "\\");
+                if win_p.len() == 2 && win_p.ends_with(':') {
+                    win_p.push('\\');
+                }
+                PathBuf::from(win_p)
+            }
+            #[cfg(not(windows))]
+            PathBuf::from(p)
+        }
+    } else {
+        dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"))
+    };
 
     #[cfg(windows)]
     {
+        if path.as_deref().unwrap_or("").is_empty() || path.as_deref().unwrap_or("") == "/" {
+            let drives = get_windows_drives();
+            let mut total = 0;
+            let mut used = 0;
+            let mut available = 0;
+            for drive in drives {
+                if let Ok(usage) = get_disk_usage_for_path(&drive) {
+                    total += usage.total;
+                    used += usage.used;
+                    available += usage.available;
+                }
+            }
+            return Ok(DiskUsage {
+                total,
+                used,
+                available,
+                mount_point: "此电脑".to_string(),
+            });
+        }
+
         use std::os::windows::ffi::OsStrExt;
 
         extern "system" {
@@ -469,7 +686,7 @@ pub async fn get_disk_usage() -> Result<DiskUsage, String> {
             ) -> i32;
         }
 
-        let mut path_utf16: Vec<u16> = home.as_os_str().encode_wide().collect();
+        let mut path_utf16: Vec<u16> = target_path.as_os_str().encode_wide().collect();
         path_utf16.push(0);
 
         let mut free_bytes_available: u64 = 0;
@@ -493,7 +710,7 @@ pub async fn get_disk_usage() -> Result<DiskUsage, String> {
                 total,
                 used,
                 available,
-                mount_point: home.to_string_lossy().to_string(),
+                mount_point: target_path.to_string_lossy().to_string(),
             });
         }
     }
@@ -503,12 +720,13 @@ pub async fn get_disk_usage() -> Result<DiskUsage, String> {
         use objc2::rc::Retained;
         use objc2::runtime::AnyObject;
         use objc2::{msg_send, ClassType, Message};
-        use objc2_foundation::{ns_string, NSArray, NSURL};
+        use objc2_foundation::{ns_string, NSArray, NSString, NSURL};
 
+        let path_str = target_path.to_string_lossy().to_string();
         let result = unsafe {
             || -> Option<DiskUsage> {
-                let url: Retained<NSURL> =
-                    msg_send![NSURL::class(), fileURLWithPath: ns_string!("/")];
+                let url_path = NSString::from_str(&path_str);
+                let url: Retained<NSURL> = msg_send![NSURL::class(), fileURLWithPath: &*url_path];
                 let keys = NSArray::from_retained_slice(&[
                     ns_string!("NSURLVolumeTotalCapacityKey").retain(),
                     ns_string!("NSURLVolumeAvailableCapacityForImportantUsageKey").retain(),
@@ -536,7 +754,7 @@ pub async fn get_disk_usage() -> Result<DiskUsage, String> {
                     total,
                     used,
                     available,
-                    mount_point: home.to_string_lossy().to_string(),
+                    mount_point: path_str.clone(),
                 })
             }()
         };
@@ -551,9 +769,9 @@ pub async fn get_disk_usage() -> Result<DiskUsage, String> {
         use std::ffi::CString;
         use std::mem;
 
-        let path_cstr = match CString::new(home.to_string_lossy().as_ref()) {
+        let path_cstr = match CString::new(target_path.to_string_lossy().as_ref()) {
             Ok(c) => c,
-            Err(_) => return Err("Home path contains null byte".to_string()),
+            Err(_) => return Err("Target path contains null byte".to_string()),
         };
         unsafe {
             let mut stat: libc::statfs = mem::zeroed();
@@ -567,7 +785,7 @@ pub async fn get_disk_usage() -> Result<DiskUsage, String> {
                     total,
                     used,
                     available,
-                    mount_point: home.to_string_lossy().to_string(),
+                    mount_point: target_path.to_string_lossy().to_string(),
                 });
             }
         }
@@ -796,4 +1014,86 @@ pub async fn open_path(path: String) -> Result<(), String> {
 #[command]
 pub fn get_platform() -> &'static str {
     crate::core::rules::current_platform()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionStatus {
+    pub has_permission: bool,
+    pub is_admin: bool,
+    pub platform: String,
+}
+
+/// 检查当前的系统磁盘访问与管理员权限状态
+#[command]
+pub async fn check_disk_permissions() -> Result<PermissionStatus, String> {
+    let platform = std::env::consts::OS.to_string();
+
+    #[cfg(target_os = "macos")]
+    {
+        // On macOS, try to read the restricted /Library/SystemMigration directory
+        // to detect whether we have Full Disk Access.
+        let has_fda = std::path::Path::new("/Library/SystemMigration")
+            .read_dir()
+            .is_ok();
+        Ok(PermissionStatus {
+            has_permission: has_fda,
+            is_admin: false,
+            platform,
+        })
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        extern "system" {
+            fn IsUserAnAdmin() -> i32;
+        }
+        let is_admin = unsafe { IsUserAnAdmin() != 0 };
+        Ok(PermissionStatus {
+            has_permission: is_admin,
+            is_admin,
+            platform,
+        })
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        Ok(PermissionStatus {
+            has_permission: true,
+            is_admin: true,
+            platform,
+        })
+    }
+}
+
+/// 打开系统对应的权限设置页面或向导
+#[command]
+pub async fn open_system_settings_pane() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let status = std::process::Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")
+            .status();
+        match status {
+            Ok(s) if s.success() => Ok(()),
+            Ok(s) => Err(format!("Command 'open' failed with exit status: {}", s)),
+            Err(e) => Err(format!("Failed to execute 'open': {}", e)),
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let status = std::process::Command::new("cmd")
+            .args(["/C", "start", "useraccountcontrolsettings"])
+            .status();
+        match status {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Failed to launch UAC settings: {}", e)),
+        }
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        Ok(())
+    }
 }

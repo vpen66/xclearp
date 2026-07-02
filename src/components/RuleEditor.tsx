@@ -1,8 +1,9 @@
 /** RuleEditor — modal form for creating/editing cleanup rules */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { CleanRule, RiskLevel, RuleGroup } from "../types/index";
 import { X, Plus, Trash2, ChevronDown } from "lucide-react";
+import { getPlatform } from "../lib/ipc";
 
 interface RuleEditorProps {
   rule: CleanRule | null; // null = create new
@@ -50,12 +51,26 @@ export default function RuleEditor({
   const [name, setName] = useState(rule?.name ?? "");
   const [description, setDescription] = useState(rule?.description ?? "");
   const [group, setGroup] = useState(rule?.group ?? defaultGroup ?? groups[0]?.id ?? "");
-  const [platforms, setPlatforms] = useState<string[]>(rule?.platforms ?? ["macos"]);
+  const [platforms, setPlatforms] = useState<string[]>(rule?.platforms ?? []);
   const [paths, setPaths] = useState<string[]>(rule?.paths ?? [""]);
   const [filePatterns, setFilePatterns] = useState<string[]>(rule?.file_patterns ?? ["*"]);
   const [excludePatterns, setExcludePatterns] = useState<string[]>(rule?.exclude_patterns ?? []);
   const [minAgeHours, setMinAgeHours] = useState<string>(rule?.min_age_hours?.toString() ?? "");
   const [riskLevel, setRiskLevel] = useState<RiskLevel>(rule?.risk_level ?? "Safe");
+
+  useEffect(() => {
+    if (!rule) {
+      getPlatform()
+        .then((p) => {
+          const targetPlatform = p === "win32" || p === "windows" ? "windows" : (p === "darwin" || p === "macos" ? "macos" : "linux");
+          setPlatforms([targetPlatform]);
+        })
+        .catch((e) => {
+          console.error("Failed to detect platform:", e);
+          setPlatforms(["windows"]); // Safe fallback
+        });
+    }
+  }, [rule]);
 
   const togglePlatform = (p: string) => {
     setPlatforms((prev) =>
@@ -109,7 +124,7 @@ export default function RuleEditor({
       <div className="bg-gray-900/90 border border-gray-800 shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col rounded-2xl m-4 overflow-hidden backdrop-blur-xl">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-950/20 shrink-0">
-          <h3 className="text-sm font-bold text-white tracking-wide">
+          <h3 className="text-sm font-bold text-gray-50 tracking-wide">
             {rule ? "编辑清理规则" : "添加清理规则"}
           </h3>
           <button
@@ -130,7 +145,7 @@ export default function RuleEditor({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
+              className="w-full px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
               placeholder="例如：Chrome 缓存清理"
             />
           </div>
@@ -142,7 +157,7 @@ export default function RuleEditor({
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
+              className="w-full px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
               placeholder="此规则清理的文件范围和作用..."
             />
           </div>
@@ -154,7 +169,7 @@ export default function RuleEditor({
               <select
                 value={group}
                 onChange={(e) => setGroup(e.target.value)}
-                className="w-full appearance-none px-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-sm text-white cursor-pointer focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
+                className="w-full appearance-none px-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 cursor-pointer focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
               >
                 {groups.map((g) => (
                   <option key={g.id} value={g.id} className="bg-gray-900 text-gray-100">
@@ -202,7 +217,7 @@ export default function RuleEditor({
                     type="text"
                     value={p}
                     onChange={(e) => updateListItem(paths, setPaths, i, e.target.value)}
-                    className="flex-1 px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-white placeholder-gray-650 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
+                    className="flex-1 px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 placeholder-gray-650 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
                     placeholder="如：~/Library/Caches/Chrome"
                   />
                   {paths.length > 1 && (
@@ -235,7 +250,7 @@ export default function RuleEditor({
                     type="text"
                     value={p}
                     onChange={(e) => updateListItem(filePatterns, setFilePatterns, i, e.target.value)}
-                    className="flex-1 px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-white placeholder-gray-650 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
+                    className="flex-1 px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 placeholder-gray-650 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
                     placeholder="如：*.tmp"
                   />
                   {filePatterns.length > 1 && (
@@ -268,7 +283,7 @@ export default function RuleEditor({
                     type="text"
                     value={p}
                     onChange={(e) => updateListItem(excludePatterns, setExcludePatterns, i, e.target.value)}
-                    className="flex-1 px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-white placeholder-gray-650 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
+                    className="flex-1 px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 placeholder-gray-650 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
                     placeholder="如：important_*"
                   />
                   <button
@@ -296,7 +311,7 @@ export default function RuleEditor({
               type="number"
               value={minAgeHours}
               onChange={(e) => setMinAgeHours(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
+              className="w-full px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
               placeholder="留空表示不限，只清理此年龄以上的文件"
             />
           </div>
