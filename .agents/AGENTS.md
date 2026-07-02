@@ -122,8 +122,8 @@ Frontend (React)  ←→  ipc.ts (invoke/listen)  ←→  Tauri IPC  ←→  com
 
 ### Rust 代码
 
-1. **格式化**：提交前必须运行 `cargo fmt --all`（CI 会检查）
-2. **Clippy**：代码必须通过 `cargo clippy --all-targets --all-features -- -D warnings`
+1. **格式化**：提交前必须运行 `cd src-tauri && cargo fmt --all`（CI 会检查）
+2. **Clippy**：代码必须通过 `cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings`
 3. **工作目录**：所有 cargo 命令在 `src-tauri/` 目录下执行
 4. **平台特定代码**：放在 `src-tauri/src/platform/` 下对应文件中，通过 `PlatformProvider` trait 抽象
 5. **新增 Tauri 命令**：
