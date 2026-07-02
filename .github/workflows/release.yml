@@ -1,0 +1,253 @@
+# =============================================================================
+# Release Workflow — Multi-Platform Build & Publish
+# =============================================================================
+# Triggered by pushing a semver Git tag (e.g., v0.1.0, v1.0.0-beta.1).
+#
+# Three-phase release strategy:
+#   1. create-release: Creates a Draft GitHub Release with auto-generated notes
+#   2. build:          Matrix build across 4 platforms using tauri-action
+#   3. publish:        Un-drafts the release only after ALL builds succeed
+#
+# Why three phases?
+#   - If any platform build fails, the release stays as Draft and users
+#     never see an incomplete release with missing platform binaries.
+#   - Each platform builds independently (fail-fast: false) so one failure
+#     doesn't cancel other builds — you still get artifacts for debugging.
+#
+# Platform matrix (easily extensible):
+#   - Windows x86_64:    .exe (NSIS), .msi
+#   - macOS Intel:       .dmg, .app.tar.gz
+#   - macOS ARM64:       .dmg, .app.tar.gz
+#   - Linux x86_64:      .deb, .AppImage
+#
+# To add a new platform (e.g., Linux ARM64), simply add an entry to the
+# matrix.include array:
+#   - platform: linux-aarch64
+#     runner: ubuntu-22.04-arm
+#     rust-target: aarch64-unknown-linux-gnu
+# =============================================================================
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Never cancel a release in progress — partial uploads are preferable
+# to losing 30+ minutes of build time across all platforms.
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write  # Required for creating releases and uploading assets
+
+jobs:
+  # ===========================================================================
+  # Phase 1: Create Draft Release
+  # ===========================================================================
+  # Creates the GitHub Release in Draft state before any builds start.
+  # Outputs the release ID for the build jobs to upload artifacts to.
+  create-release:
+    name: Create Draft Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    outputs:
+      release-id: ${{ steps.create-release.outputs.id }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # softprops/action-gh-release is the most popular community action for
+      # GitHub Releases, with 10k+ stars and active maintenance.
+      # `generate_release_notes: true` uses GitHub's built-in release notes
+      # generation based on merged PRs and commits since the last tag.
+      - name: Create draft release
+        id: create-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          draft: true
+          # Auto-detect prerelease from tag name (e.g., v1.0.0-beta.1)
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+
+  # ===========================================================================
+  # Phase 2: Build All Platforms
+  # ===========================================================================
+  # Each matrix entry produces platform-specific installers and uploads them
+  # to the Draft Release created in Phase 1.
+  build:
+    name: Build / ${{ matrix.platform }}
+    needs: create-release
+
+    strategy:
+      # Don't cancel other builds if one platform fails.
+      # We want all possible artifacts even if one platform has issues.
+      fail-fast: false
+      matrix:
+        include:
+          # -----------------------------------------------------------------
+          # Windows x86_64
+          # -----------------------------------------------------------------
+          # Produces: NSIS installer (.exe), MSI installer (.msi)
+          # Runner: windows-latest (Windows Server 2022)
+          - platform: windows-x86_64
+            runner: windows-latest
+            rust-target: x86_64-pc-windows-msvc
+
+          # -----------------------------------------------------------------
+          # macOS Intel (x86_64)
+          # -----------------------------------------------------------------
+          # Produces: DMG disk image (.dmg), App bundle (.app.tar.gz)
+          # Runner: macos-13 is the last Intel-based macOS runner
+          - platform: macos-x86_64
+            runner: macos-13
+            rust-target: x86_64-apple-darwin
+
+          # -----------------------------------------------------------------
+          # macOS Apple Silicon (ARM64)
+          # -----------------------------------------------------------------
+          # Produces: DMG disk image (.dmg), App bundle (.app.tar.gz)
+          # Runner: macos-latest (macos-14+) is ARM64 (M1/M2)
+          - platform: macos-aarch64
+            runner: macos-latest
+            rust-target: aarch64-apple-darwin
+
+          # -----------------------------------------------------------------
+          # Linux x86_64
+          # -----------------------------------------------------------------
+          # Produces: Debian package (.deb), AppImage (.AppImage)
+          # Runner: ubuntu-22.04 for glibc compatibility
+          - platform: linux-x86_64
+            runner: ubuntu-22.04
+            rust-target: x86_64-unknown-linux-gnu
+
+          # -----------------------------------------------------------------
+          # Future: Linux ARM64 (uncomment when ready)
+          # -----------------------------------------------------------------
+          # - platform: linux-aarch64
+          #   runner: ubuntu-22.04-arm
+          #   rust-target: aarch64-unknown-linux-gnu
+
+          # -----------------------------------------------------------------
+          # Future: Windows ARM64 (uncomment when ready)
+          # -----------------------------------------------------------------
+          # - platform: windows-aarch64
+          #   runner: windows-latest
+          #   rust-target: aarch64-pc-windows-msvc
+
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # Project Setup
+      # -----------------------------------------------------------------------
+      - name: Setup project environment
+        uses: ./.github/actions/setup-project
+        with:
+          rust-target: ${{ matrix.rust-target }}
+
+      # -----------------------------------------------------------------------
+      # Linux System Dependencies
+      # -----------------------------------------------------------------------
+      # Required for Tauri's WebView and system tray on Linux.
+      # Also installs AppImage tooling (patchelf) and RPM if needed.
+      - name: Install Linux system dependencies (Tauri 2.0)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libxdo-dev
+
+      # -----------------------------------------------------------------------
+      # Build & Upload
+      # -----------------------------------------------------------------------
+      # tauri-apps/tauri-action handles:
+      #   1. Running `tauri build --target <target>` (including frontend build)
+      #   2. Generating platform-specific installers (NSIS/MSI/DMG/DEB/AppImage)
+      #   3. Uploading all artifacts to the specified GitHub Release
+      #   4. Code signing (when APPLE_CERTIFICATE / WINDOWS_CERTIFICATE are set)
+      #   5. Apple Notarization (when APPLE_API_KEY is set)
+      #   6. Tauri Updater artifacts (when TAURI_SIGNING_PRIVATE_KEY is set)
+      - name: Build and upload release artifacts
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          # =================================================================
+          # macOS Code Signing & Notarization (uncomment when ready)
+          # =================================================================
+          # To enable, add these secrets in GitHub repo settings:
+          #   APPLE_CERTIFICATE:          Base64-encoded .p12 certificate
+          #   APPLE_CERTIFICATE_PASSWORD: Certificate password
+          #   APPLE_SIGNING_IDENTITY:     e.g., "Developer ID Application: Your Name (TEAM_ID)"
+          #   APPLE_API_ISSUER:           App Store Connect API Issuer ID
+          #   APPLE_API_KEY:              App Store Connect API Key ID
+          #   APPLE_API_KEY_PATH:         Path to .p8 key file
+          #
+          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          # APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          # APPLE_API_KEY_PATH: ${{ secrets.APPLE_API_KEY_PATH }}
+
+          # =================================================================
+          # Windows Code Signing (uncomment when ready)
+          # =================================================================
+          # To enable, add these secrets:
+          #   WINDOWS_CERTIFICATE:          Base64-encoded .pfx certificate
+          #   WINDOWS_CERTIFICATE_PASSWORD: Certificate password
+          #
+          # WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          # WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+
+          # =================================================================
+          # Tauri Updater Signing (uncomment when ready)
+          # =================================================================
+          # Required for Tauri's built-in auto-update feature.
+          # Generate keys with: `pnpm tauri signer generate -w ~/.tauri/xclearp.key`
+          #
+          # TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+        with:
+          # Upload artifacts to the Draft Release created in Phase 1
+          releaseId: ${{ needs.create-release.outputs.release-id }}
+          # Explicitly specify the Rust target (don't rely on runner defaults)
+          args: --target ${{ matrix.rust-target }}
+
+  # ===========================================================================
+  # Phase 3: Publish Release
+  # ===========================================================================
+  # Runs only after ALL platform builds succeed.
+  # Changes the Release from Draft → Published, making it visible to users.
+  publish-release:
+    name: Publish Release
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Publish release (un-draft)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Using GitHub CLI for a simple, reliable un-draft operation.
+        # `gh release edit` is idempotent and handles edge cases well.
+        run: |
+          gh release edit "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --draft=false

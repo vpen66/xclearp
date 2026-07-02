@@ -1,0 +1,119 @@
+# =============================================================================
+# CI Workflow — Code Quality Gate
+# =============================================================================
+# Runs on every push to main/develop and every PR targeting these branches.
+# All checks run on a single Linux runner (cheapest: 1x billing rate) because
+# code quality checks are platform-independent.
+#
+# Pipeline steps (sequential, fail-fast):
+#   1. Rust formatting check (cargo fmt)
+#   2. Rust static analysis (clippy with -D warnings)
+#   3. Rust unit tests
+#   4. TypeScript type check
+#   5. Frontend build verification (Vite)
+#
+# Design decisions:
+#   - Single job, sequential steps: avoids ~30s runner startup overhead per job.
+#     Total CI time is typically < 3 minutes, so parallelism has minimal benefit.
+#   - Linux-only: Rust format/clippy/test and TS checks are platform-independent.
+#     Multi-platform compilation is validated in Release workflow only.
+#   - Linux system deps installed for Tauri: cargo clippy/test need to compile
+#     Tauri which depends on webkit2gtk and other system libraries.
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+    # Skip CI for documentation-only changes
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.github/dependabot.yml'
+  pull_request:
+    branches: [main, develop]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.github/dependabot.yml'
+
+# Cancel in-progress CI runs for the same branch/PR to save Actions minutes.
+# Example: pushing twice quickly to the same PR cancels the first run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Principle of Least Privilege: only read access needed for CI checks.
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # Linux System Dependencies for Tauri 2.0
+      # -----------------------------------------------------------------------
+      # Tauri's Rust code depends on system libraries for WebView, tray icons,
+      # and SVG rendering. Without these, cargo clippy/test will fail to compile.
+      - name: Install Linux system dependencies (Tauri 2.0)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libxdo-dev
+
+      # -----------------------------------------------------------------------
+      # Project Setup (Rust + Node.js + pnpm + caches)
+      # -----------------------------------------------------------------------
+      - name: Setup project environment
+        uses: ./.github/actions/setup-project
+        with:
+          rust-components: clippy rustfmt
+
+      # -----------------------------------------------------------------------
+      # Rust Checks
+      # -----------------------------------------------------------------------
+
+      # Enforce consistent code style. `cargo fmt --check` returns non-zero
+      # if any file differs from rustfmt's output.
+      - name: 'Rust: Check formatting'
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
+
+      # Static analysis with all warnings treated as errors (-D warnings).
+      # --all-targets includes bins, libs, tests, benches, and examples.
+      # This also effectively validates that the code compiles (no separate
+      # `cargo build` step needed).
+      - name: 'Rust: Clippy lint analysis'
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      # Run all unit and integration tests.
+      - name: 'Rust: Run tests'
+        working-directory: src-tauri
+        run: cargo test --all
+
+      # -----------------------------------------------------------------------
+      # Frontend Checks
+      # -----------------------------------------------------------------------
+
+      # TypeScript type checking without emitting output.
+      # Separate from `pnpm build` for clear error attribution.
+      - name: 'TypeScript: Type check'
+        run: pnpm exec tsc --noEmit
+
+      # Full frontend build: Vite bundling, tree-shaking, minification.
+      # Validates that the frontend can be built for production.
+      - name: 'Frontend: Build (Vite)'
+        run: pnpm exec vite build

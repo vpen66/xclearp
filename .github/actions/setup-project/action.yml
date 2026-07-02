@@ -1,0 +1,96 @@
+# =============================================================================
+# Composite Action: Setup XClearp Project Environment
+# =============================================================================
+# Centralizes all environment initialization logic (Rust, Node.js, pnpm, caches)
+# so that CI, Release, and Nightly workflows don't repeat the same setup steps.
+#
+# Usage:
+#   - uses: ./.github/actions/setup-project
+#     with:
+#       rust-target: x86_64-unknown-linux-gnu  # optional
+#       rust-components: clippy rustfmt         # optional
+# =============================================================================
+
+name: 'Setup XClearp Project'
+description: 'Install Rust toolchain, Node.js, pnpm, and project dependencies with caching'
+
+inputs:
+  rust-target:
+    description: 'Rust target triple to add (leave empty for host default)'
+    required: false
+    default: ''
+  rust-components:
+    description: 'Space-separated Rust components to install (e.g., clippy rustfmt)'
+    required: false
+    default: ''
+  node-version:
+    description: 'Node.js version to install'
+    required: false
+    default: '20'
+
+runs:
+  using: 'composite'
+  steps:
+    # -------------------------------------------------------------------------
+    # Rust Toolchain
+    # -------------------------------------------------------------------------
+    # dtolnay/rust-toolchain is the de facto standard for Rust CI.
+    # Unlike actions-rs/toolchain (deprecated), it's actively maintained and
+    # handles target addition and component installation in a single step.
+    - name: Install Rust stable toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ inputs.rust-target }}
+        components: ${{ inputs.rust-components }}
+
+    # -------------------------------------------------------------------------
+    # Cargo Cache
+    # -------------------------------------------------------------------------
+    # Swatinem/rust-cache caches:
+    #   - ~/.cargo/registry/index
+    #   - ~/.cargo/registry/cache
+    #   - ~/.cargo/git/db
+    #   - src-tauri/target/ (compiled dependencies)
+    #
+    # Cache key includes: runner OS, Rust version hash, Cargo.lock hash, and
+    # our custom key (rust-target) to prevent cache collisions between targets.
+    #
+    # CARGO_INCREMENTAL=0 is set by default — incremental compilation is
+    # counterproductive in CI because the full cache rarely survives between runs.
+    - name: Cache Rust dependencies and build artifacts
+      uses: Swatinem/rust-cache@v2
+      with:
+        # Tell rust-cache where the Cargo workspace is located.
+        # Format: "<workspace-path> -> <target-dir>"
+        workspaces: src-tauri -> target
+        # Differentiate cache by target triple to prevent cross-target pollution.
+        key: ${{ inputs.rust-target }}
+
+    # -------------------------------------------------------------------------
+    # pnpm
+    # -------------------------------------------------------------------------
+    # pnpm/action-setup@v4 auto-detects pnpm version from the `packageManager`
+    # field in package.json (currently pnpm@11.9.0). No manual version needed.
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+
+    # -------------------------------------------------------------------------
+    # Node.js
+    # -------------------------------------------------------------------------
+    # actions/setup-node must come AFTER pnpm/action-setup so that the `cache`
+    # option can find the pnpm store path. This caches the pnpm content-addressable
+    # store, keyed by pnpm-lock.yaml hash.
+    - name: Setup Node.js ${{ inputs.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'pnpm'
+
+    # -------------------------------------------------------------------------
+    # Frontend Dependencies
+    # -------------------------------------------------------------------------
+    # --frozen-lockfile ensures CI fails if pnpm-lock.yaml is out of sync with
+    # package.json, preventing "works on my machine" issues.
+    - name: Install frontend dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile

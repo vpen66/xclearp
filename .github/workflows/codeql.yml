@@ -1,0 +1,63 @@
+# =============================================================================
+# CodeQL Security Analysis
+# =============================================================================
+# Performs static application security testing (SAST) on the TypeScript/
+# JavaScript frontend code using GitHub's CodeQL engine.
+#
+# Note: CodeQL does not natively support Rust analysis (as of 2026).
+# For Rust dependency auditing, consider running `cargo audit` in CI
+# or using tools like `cargo-deny`.
+#
+# Schedule: Weekly scan catches vulnerabilities in dependencies and code
+# patterns that may not be caught by regular CI checks.
+# =============================================================================
+
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly scan: Monday at 08:00 UTC
+    - cron: '0 8 * * 1'
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  security-events: write  # Required for uploading CodeQL results
+  contents: read
+
+jobs:
+  analyze:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Initialize CodeQL for JavaScript/TypeScript analysis.
+      # CodeQL builds an AST database of the codebase, then runs security
+      # queries against it to find vulnerabilities like XSS, injection, etc.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          # Use the default query suite (security-extended) for broad coverage.
+          # To add custom queries: queries: ./path/to/custom-queries
+
+      # Autobuild detects the build system and runs an appropriate build.
+      # For our project, it will detect the Vite/TypeScript setup.
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      # Run the CodeQL queries and upload results to the Security tab.
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:javascript-typescript'

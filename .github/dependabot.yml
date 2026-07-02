@@ -1,0 +1,64 @@
+# =============================================================================
+# Dependabot Configuration
+# =============================================================================
+# Automatically creates PRs to update GitHub Actions and npm dependencies.
+# This ensures security patches and improvements are applied promptly.
+# =============================================================================
+
+version: 2
+
+updates:
+  # -------------------------------------------------------------------------
+  # GitHub Actions
+  # -------------------------------------------------------------------------
+  # Monitor all actions used in workflows for version updates.
+  # Grouped PRs reduce noise — one PR updates all actions at once.
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    # Group all action updates into a single PR to reduce noise
+    groups:
+      github-actions:
+        patterns:
+          - '*'
+    commit-message:
+      prefix: 'ci'
+      include: 'scope'
+
+  # -------------------------------------------------------------------------
+  # npm (pnpm) Dependencies
+  # -------------------------------------------------------------------------
+  # Monitor frontend dependencies for security updates.
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    # Group dependency updates by type to keep PRs manageable
+    groups:
+      production-deps:
+        dependency-type: 'production'
+      dev-deps:
+        dependency-type: 'development'
+    commit-message:
+      prefix: 'deps'
+      include: 'scope'
+
+  # -------------------------------------------------------------------------
+  # Cargo (Rust) Dependencies
+  # -------------------------------------------------------------------------
+  # Monitor Rust dependencies for security updates.
+  - package-ecosystem: 'cargo'
+    directory: '/src-tauri'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    groups:
+      cargo-deps:
+        patterns:
+          - '*'
+    commit-message:
+      prefix: 'deps'
+      include: 'scope'

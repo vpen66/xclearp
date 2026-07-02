@@ -1,0 +1,89 @@
+# ===========================
+# Dependencies
+# ===========================
+node_modules/
+.pnpm-store/
+
+# ===========================
+# Build Output
+# ===========================
+dist/
+dist-ssr/
+*.tsbuildinfo
+
+# ===========================
+# Rust / Cargo
+# ===========================
+src-tauri/target/
+src-tauri/Cargo.lock.bak
+
+# ===========================
+# Tauri
+# ===========================
+# Tauri 构建产物（签名包、bundle）
+src-tauri/target/release/bundle/
+src-tauri/target/release/*.app
+src-tauri/target/release/*.exe
+src-tauri/target/release/*.dmg
+src-tauri/target/release/*.msi
+# Tauri 生成的 schema（非手写）
+src-tauri/gen/schemas/
+
+# ===========================
+# IDE / Editor
+# ===========================
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*~
+*.sublime-project
+*.sublime-workspace
+
+# ===========================
+# OS
+# ===========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ===========================
+# Environment / Secrets
+# ===========================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ===========================
+# Logs
+# ===========================
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+cargo-check.log
+
+# ===========================
+# Testing / Coverage
+# ===========================
+coverage/
+*.lcov
+.nyc_output/
+
+# ===========================
+# Misc
+# ===========================
+*.bak
+*.tmp
+*.temp
+.cache/
+.qoder/

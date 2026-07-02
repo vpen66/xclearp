@@ -1,0 +1,32 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capabilities for XClearp",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:event:allow-emit",
+    "core:event:allow-emit-to",
+    "allow-start-scan",
+    "allow-start-clean",
+    "allow-cancel-operation",
+    "allow-get-groups",
+    "allow-get-rules",
+    "allow-update-rule",
+    "allow-add-custom-rule",
+    "allow-list-directory",
+    "allow-get-disk-usage",
+    "allow-start-disk-analysis",
+    "allow-get-whitelist",
+    "allow-update-whitelist",
+    "allow-add-group",
+    "allow-delete-group",
+    "allow-delete-path",
+    "allow-import-rules",
+    "allow-clear-disk-analysis-cache",
+    "allow-open-path",
+    "allow-get-platform"
+  ]
+}

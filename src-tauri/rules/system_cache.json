@@ -1,0 +1,47 @@
+[
+  {
+    "id": "thumbnail_cache_linux",
+    "name": "缩略图缓存",
+    "group": "system_cache",
+    "description": "Linux 缩略图缓存文件",
+    "platforms": ["linux"],
+    "paths": ["~/.cache/thumbnails"],
+    "file_patterns": ["*"],
+    "exclude_patterns": [],
+    "min_age_hours": 0,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  },
+  {
+    "id": "font_cache",
+    "name": "字体缓存",
+    "group": "system_cache",
+    "description": "系统字体缓存文件",
+    "platforms": ["macos", "linux"],
+    "paths": [
+      "~/Library/Caches/com.apple.fontd",
+      "~/.cache/fontconfig"
+    ],
+    "file_patterns": ["*"],
+    "exclude_patterns": [],
+    "min_age_hours": 0,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  },
+  {
+    "id": "icon_cache_windows",
+    "name": "图标缓存",
+    "group": "system_cache",
+    "description": "Windows 图标缓存文件",
+    "platforms": ["windows"],
+    "paths": ["%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer"],
+    "file_patterns": ["iconcache_*.db", "thumbcache_*.db"],
+    "exclude_patterns": [],
+    "min_age_hours": 0,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  }
+]

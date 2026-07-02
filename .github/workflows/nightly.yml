@@ -1,0 +1,102 @@
+# =============================================================================
+# Nightly Build Workflow
+# =============================================================================
+# Builds the application for all platforms on a daily schedule.
+# Unlike the Release workflow, artifacts are uploaded as GitHub Artifacts
+# (not to a Release) and retained for 7 days.
+#
+# Purpose:
+#   - Catch cross-platform build failures before release time
+#   - Provide internal testers with fresh builds
+#   - Validate that dependency updates don't break any platform
+#
+# Cost estimate:
+#   ~4 runners × 15-30 min = 60-120 Actions minutes per night
+#   (macOS runners billed at 10x, so effective cost is higher)
+#
+# To disable nightly builds, comment out the `schedule` trigger below.
+# Manual builds via workflow_dispatch will still work.
+# =============================================================================
+
+name: Nightly
+
+on:
+  schedule:
+    # Run at 02:00 UTC daily (10:00 CST)
+    - cron: '0 2 * * *'
+  # Allow manual triggers for on-demand builds
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Nightly / ${{ matrix.platform }}
+
+    strategy:
+      # Build all platforms even if one fails — we want to know which
+      # platforms are broken, not just that "something failed".
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x86_64
+            runner: windows-latest
+            rust-target: x86_64-pc-windows-msvc
+          - platform: macos-x86_64
+            runner: macos-13
+            rust-target: x86_64-apple-darwin
+          - platform: macos-aarch64
+            runner: macos-latest
+            rust-target: aarch64-apple-darwin
+          - platform: linux-x86_64
+            runner: ubuntu-22.04
+            rust-target: x86_64-unknown-linux-gnu
+
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup project environment
+        uses: ./.github/actions/setup-project
+        with:
+          rust-target: ${{ matrix.rust-target }}
+
+      # Linux system dependencies (same as Release workflow)
+      - name: Install Linux system dependencies (Tauri 2.0)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libxdo-dev
+
+      # Build without uploading to any release.
+      # tauri-action without tagName/releaseId just builds the application.
+      - name: Build Tauri application
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --target ${{ matrix.rust-target }}
+
+      # Upload build artifacts for download/testing.
+      # Artifacts are retained for 7 days to save storage.
+      - name: Upload nightly artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xclearp-nightly-${{ matrix.platform }}
+          path: |
+            src-tauri/target/${{ matrix.rust-target }}/release/bundle/**/*
+          retention-days: 7
+          if-no-files-found: error

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "macos_trash",
+    "name": "废纸篓",
+    "group": "trash",
+    "description": "macOS 废纸篓中的文件",
+    "platforms": ["macos"],
+    "paths": ["~/.Trash"],
+    "file_patterns": ["*"],
+    "exclude_patterns": [],
+    "min_age_hours": null,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  },
+  {
+    "id": "windows_recycle_bin",
+    "name": "回收站",
+    "group": "trash",
+    "description": "Windows 回收站中的文件",
+    "platforms": ["windows"],
+    "paths": [],
+    "file_patterns": [],
+    "exclude_patterns": [],
+    "min_age_hours": null,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  },
+  {
+    "id": "linux_trash",
+    "name": "回收站",
+    "group": "trash",
+    "description": "Linux 回收站中的文件",
+    "platforms": ["linux"],
+    "paths": ["~/.local/share/Trash/files"],
+    "file_patterns": ["*"],
+    "exclude_patterns": [],
+    "min_age_hours": null,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  }
+]

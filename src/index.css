@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dark theme base */
+html {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #030712; /* gray-950 */
+  color: #f3f4f6; /* gray-100 */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Custom scrollbar globally for a consistent, premium look */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.25); /* Subtle grey-400 thumb with 25% opacity */
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(99, 102, 241, 0.45); /* Indigo hover matching the app's secondary/accent brand colors */
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: rgba(99, 102, 241, 0.6);
+}
+
+/* Standard scrollbar for Firefox */
+* {
+  scrollbar-color: rgba(156, 163, 175, 0.25) transparent;
+  scrollbar-width: thin;
+}
+
+/* Selection color */
+::selection {
+  background-color: rgba(59, 130, 246, 0.3);
+  color: #fff;
+}
+
+/* Premium Entry Animations */
+@keyframes slideUpFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up-fade-in {
+  animation: slideUpFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animation-delay-100 {
+  animation-delay: 100ms;
+}
+
+.animation-delay-200 {
+  animation-delay: 200ms;
+}
+
+.animation-delay-300 {
+  animation-delay: 300ms;
+}
+
+/* Tooltip Animations */
+@keyframes tooltipTop {
+  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes tooltipBottom {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes tooltipLeft {
+  from { opacity: 0; transform: translateX(4px) scale(0.97); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes tooltipRight {
+  from { opacity: 0; transform: translateX(-4px) scale(0.97); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+.animate-tooltip-top {
+  animation: tooltipTop 0.12s cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+.animate-tooltip-bottom {
+  animation: tooltipBottom 0.12s cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+.animate-tooltip-left {
+  animation: tooltipLeft 0.12s cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+.animate-tooltip-right {
+  animation: tooltipRight 0.12s cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+
+/* Progress Bar Shimmer Animation */
+@keyframes progressShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.bg-shimmer-purple {
+  background: linear-gradient(
+    90deg,
+    #a855f7 0%,
+    #d8b4fe 25%,
+    #a855f7 50%,
+    #d8b4fe 75%,
+    #a855f7 100%
+  );
+  background-size: 200% 100%;
+}
+
+.animate-progress-shimmer {
+  animation: progressShimmer 1.8s infinite linear;
+}
+

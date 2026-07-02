@@ -1,0 +1,47 @@
+[
+  {
+    "id": "system_temp_macos",
+    "name": "macOS 临时文件",
+    "group": "system_temp",
+    "description": "macOS 系统临时文件和日志",
+    "platforms": ["macos"],
+    "paths": [
+      "~/Library/Logs",
+      "/private/var/folders"
+    ],
+    "file_patterns": ["*.log", "*.crash", "*.tmp"],
+    "exclude_patterns": [],
+    "min_age_hours": 48,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  },
+  {
+    "id": "system_temp_windows",
+    "name": "Windows 临时文件",
+    "group": "system_temp",
+    "description": "Windows 系统临时文件",
+    "platforms": ["windows"],
+    "paths": ["%TEMP%"],
+    "file_patterns": ["*.tmp", "*.temp", "*.log"],
+    "exclude_patterns": [],
+    "min_age_hours": 24,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  },
+  {
+    "id": "system_temp_linux",
+    "name": "Linux 临时文件",
+    "group": "system_temp",
+    "description": "Linux /tmp 目录中的旧文件",
+    "platforms": ["linux"],
+    "paths": ["/tmp", "/var/tmp"],
+    "file_patterns": ["*.tmp", "*.temp", "*.log"],
+    "exclude_patterns": [],
+    "min_age_hours": 48,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  }
+]

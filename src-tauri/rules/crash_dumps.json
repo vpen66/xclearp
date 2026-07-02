@@ -1,0 +1,53 @@
+[
+  {
+    "id": "macos_crash_dumps",
+    "name": "macOS 崩溃报告",
+    "group": "crash_dumps",
+    "description": "macOS 应用崩溃转储文件",
+    "platforms": ["macos"],
+    "paths": [
+      "~/Library/Logs/DiagnosticReports",
+      "/Library/Logs/DiagnosticReports"
+    ],
+    "file_patterns": ["*.crash", "*.diag", "*.ips"],
+    "exclude_patterns": [],
+    "min_age_hours": 24,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  },
+  {
+    "id": "windows_crash_dumps",
+    "name": "Windows 崩溃转储",
+    "group": "crash_dumps",
+    "description": "Windows 应用崩溃转储文件",
+    "platforms": ["windows"],
+    "paths": [
+      "%LOCALAPPDATA%\\CrashDumps",
+      "%LOCALAPPDATA%\\Temp\\*.dmp"
+    ],
+    "file_patterns": ["*.dmp", "*.dump"],
+    "exclude_patterns": [],
+    "min_age_hours": 24,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  },
+  {
+    "id": "linux_crash_dumps",
+    "name": "Linux 崩溃转储",
+    "group": "crash_dumps",
+    "description": "Linux 应用崩溃转储文件",
+    "platforms": ["linux"],
+    "paths": [
+      "/var/crash",
+      "~/.local/share/coredumpctl"
+    ],
+    "file_patterns": ["*.core", "*.crash"],
+    "exclude_patterns": [],
+    "min_age_hours": 24,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  }
+]

@@ -1,0 +1,109 @@
+[
+  {
+    "id": "chrome_cache",
+    "name": "Google Chrome 缓存",
+    "group": "browser_cache",
+    "description": "Chrome 浏览器缓存文件",
+    "platforms": ["macos", "linux"],
+    "paths": [
+      "~/Library/Caches/Google/Chrome/Default/Cache",
+      "~/.cache/google-chrome/Default/Cache"
+    ],
+    "file_patterns": ["*"],
+    "exclude_patterns": ["*.lock"],
+    "min_age_hours": 0,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  },
+  {
+    "id": "chrome_cache_win",
+    "name": "Google Chrome 缓存",
+    "group": "browser_cache",
+    "description": "Chrome 浏览器缓存文件 (Windows)",
+    "platforms": ["windows"],
+    "paths": ["%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Cache"],
+    "file_patterns": ["*"],
+    "exclude_patterns": ["*.lock"],
+    "min_age_hours": 0,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  },
+  {
+    "id": "firefox_cache",
+    "name": "Firefox 缓存",
+    "group": "browser_cache",
+    "description": "Firefox 浏览器缓存文件",
+    "platforms": ["macos", "linux"],
+    "paths": [
+      "~/Library/Caches/Firefox/Profiles",
+      "~/.cache/mozilla/firefox"
+    ],
+    "file_patterns": ["*"],
+    "exclude_patterns": ["*.lock", "*.sqlite", "*.sqlite-journal"],
+    "min_age_hours": 0,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  },
+  {
+    "id": "firefox_cache_win",
+    "name": "Firefox 缓存",
+    "group": "browser_cache",
+    "description": "Firefox 浏览器缓存文件 (Windows)",
+    "platforms": ["windows"],
+    "paths": ["%LOCALAPPDATA%\\Mozilla\\Firefox\\Profiles"],
+    "file_patterns": ["*"],
+    "exclude_patterns": ["*.lock", "*.sqlite", "*.sqlite-journal"],
+    "min_age_hours": 0,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  },
+  {
+    "id": "safari_cache",
+    "name": "Safari 缓存",
+    "group": "browser_cache",
+    "description": "Safari 浏览器缓存文件",
+    "platforms": ["macos"],
+    "paths": [
+      "~/Library/Caches/com.apple.Safari/WebKitCache",
+      "~/Library/Caches/com.apple.Safari/CacheStorage"
+    ],
+    "file_patterns": ["*"],
+    "exclude_patterns": [],
+    "min_age_hours": 0,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  },
+  {
+    "id": "edge_cache",
+    "name": "Microsoft Edge 缓存",
+    "group": "browser_cache",
+    "description": "Edge 浏览器缓存文件",
+    "platforms": ["macos"],
+    "paths": ["~/Library/Caches/Microsoft Edge/Default/Cache"],
+    "file_patterns": ["*"],
+    "exclude_patterns": ["*.lock"],
+    "min_age_hours": 0,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  },
+  {
+    "id": "edge_cache_win",
+    "name": "Microsoft Edge 缓存",
+    "group": "browser_cache",
+    "description": "Edge 浏览器缓存文件 (Windows)",
+    "platforms": ["windows"],
+    "paths": ["%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Cache"],
+    "file_patterns": ["*"],
+    "exclude_patterns": ["*.lock"],
+    "min_age_hours": 0,
+    "max_size_mb": null,
+    "risk_level": "Safe",
+    "enabled": true
+  }
+]
