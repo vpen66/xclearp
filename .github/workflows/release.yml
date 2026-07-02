@@ -173,6 +173,39 @@ jobs:
             libxdo-dev
 
       # -----------------------------------------------------------------------
+      # Sync Version
+      # -----------------------------------------------------------------------
+      # Extracts the semver version from the Git tag (e.g., v1.2.3 -> 1.2.3)
+      # and updates it dynamically in package.json, tauri.conf.json, and Cargo.toml
+      # so that the built application packages match the release version.
+      - name: Sync version from Git Tag
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "Building version: $VERSION"
+          node -e "
+            const fs = require('fs');
+            const version = '$VERSION';
+            
+            // 1. package.json
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = version;
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+            
+            // 2. src-tauri/tauri.conf.json
+            const tauri = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+            tauri.version = version;
+            fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(tauri, null, 2) + '\n');
+            
+            // 3. src-tauri/Cargo.toml
+            let cargo = fs.readFileSync('src-tauri/Cargo.toml', 'utf8');
+            cargo = cargo.replace(/^version\s*=\s*\"[^\"]*\"/m, 'version = \"' + version + '\"');
+            fs.writeFileSync('src-tauri/Cargo.toml', cargo);
+            
+            console.log('Successfully updated versions in package.json, tauri.conf.json, and Cargo.toml to ' + version);
+          "
+
+      # -----------------------------------------------------------------------
       # Build & Upload
       # -----------------------------------------------------------------------
       # tauri-apps/tauri-action handles:
