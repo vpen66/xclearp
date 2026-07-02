@@ -104,9 +104,9 @@ jobs:
           # macOS Intel (x86_64)
           # -----------------------------------------------------------------
           # Produces: DMG disk image (.dmg), App bundle (.app.tar.gz)
-          # Runner: macos-13 is the last Intel-based macOS runner
+          # Runner: macos-latest supports cross-compiling to x86_64
           - platform: macos-x86_64
-            runner: macos-13
+            runner: macos-latest
             rust-target: x86_64-apple-darwin
 
           # -----------------------------------------------------------------
