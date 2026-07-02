@@ -48,7 +48,7 @@ jobs:
             runner: windows-latest
             rust-target: x86_64-pc-windows-msvc
           - platform: macos-x86_64
-            runner: macos-13
+            runner: macos-latest
             rust-target: x86_64-apple-darwin
           - platform: macos-aarch64
             runner: macos-latest
