@@ -38,7 +38,12 @@ pub fn normalize_path_string(pattern: &str, home: &Path) -> String {
         if let Some(end) = result[start..].find('}') {
             let var_name = &result[start + 2..start + end];
             if let Ok(value) = std::env::var(var_name) {
-                result = format!("{}{}{}", &result[..start], value, &result[start + end + 1..]);
+                result = format!(
+                    "{}{}{}",
+                    &result[..start],
+                    value,
+                    &result[start + end + 1..]
+                );
             } else {
                 break;
             }
@@ -84,9 +89,7 @@ pub fn safe_remove_impl(path: &Path, error_template: &PlatformError) -> Result<(
 
 /// Get the file size of a path, returning 0 if it cannot be determined.
 pub fn get_file_size(path: &Path) -> u64 {
-    std::fs::metadata(path)
-        .map(|m| m.len())
-        .unwrap_or(0)
+    std::fs::metadata(path).map(|m| m.len()).unwrap_or(0)
 }
 
 /// Check if a file is older than the given number of hours.

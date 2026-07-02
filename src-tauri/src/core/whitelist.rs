@@ -1,8 +1,8 @@
+use dirs;
 use glob::Pattern;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use dirs;
 
 /// Three-level whitelist system for excluding paths from cleaning.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -138,13 +138,13 @@ impl Whitelist {
     /// - `None` if it does not match any active global exclude pattern.
     pub fn check_disk_analysis_exclude(&self, path: &Path) -> Option<bool> {
         let path_str = path.to_string_lossy();
-        
+
         for pattern_str in &self.global_excludes {
             // If the pattern is disabled, skip it
             if self.disabled_patterns.contains(pattern_str) {
                 continue;
             }
-            
+
             // Check if path matches pattern
             if matches_path_or_parent(&path_str, pattern_str) {
                 // If it matches, check if the eye is open
@@ -161,7 +161,7 @@ fn matches_path_or_parent(path_str: &str, pattern_str: &str) -> bool {
     // Normalize path separators to forward slashes for glob matching
     let path_str = path_str.replace('\\', "/");
     let pattern_str = pattern_str.replace('\\', "/");
-    
+
     if let Ok(pattern) = Pattern::new(&pattern_str) {
         if pattern.matches(&path_str) {
             return true;

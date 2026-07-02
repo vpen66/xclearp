@@ -26,7 +26,7 @@ pub async fn get_rules() -> Result<Vec<CleanRule>, String> {
 #[command]
 pub async fn update_rule(rule: CleanRule) -> Result<bool, String> {
     let custom_dir = get_custom_rules_dir()?;
-    
+
     // Try to update the rule in place in existing files
     let mut updated = false;
     if let Ok(entries) = fs::read_dir(&custom_dir) {
@@ -57,8 +57,7 @@ pub async fn update_rule(rule: CleanRule) -> Result<bool, String> {
         let file_path = custom_dir.join(format!("{}.json", rule.id));
         let json = serde_json::to_string_pretty(&vec![&rule])
             .map_err(|e| format!("Failed to serialize rule: {}", e))?;
-        fs::write(&file_path, json)
-            .map_err(|e| format!("Failed to write rule file: {}", e))?;
+        fs::write(&file_path, json).map_err(|e| format!("Failed to write rule file: {}", e))?;
     }
 
     Ok(true)
@@ -69,7 +68,7 @@ pub async fn update_rule(rule: CleanRule) -> Result<bool, String> {
 #[command]
 pub async fn import_rules(rules: Vec<CleanRule>) -> Result<bool, String> {
     let custom_dir = get_custom_rules_dir()?;
-    
+
     // Auto-create missing groups during import
     let mut defs = rules::load_group_definitions();
     let mut changed_defs = false;
@@ -89,9 +88,11 @@ pub async fn import_rules(rules: Vec<CleanRule>) -> Result<bool, String> {
         let _ = rules::save_group_definitions(&defs);
     }
 
-    let mut file_rules_map: std::collections::HashMap<PathBuf, Vec<CleanRule>> = std::collections::HashMap::new();
-    let mut existing_rule_to_file: std::collections::HashMap<String, PathBuf> = std::collections::HashMap::new();
-    
+    let mut file_rules_map: std::collections::HashMap<PathBuf, Vec<CleanRule>> =
+        std::collections::HashMap::new();
+    let mut existing_rule_to_file: std::collections::HashMap<String, PathBuf> =
+        std::collections::HashMap::new();
+
     if let Ok(entries) = fs::read_dir(&custom_dir) {
         for entry in entries {
             if let Ok(entry) = entry {
@@ -109,9 +110,9 @@ pub async fn import_rules(rules: Vec<CleanRule>) -> Result<bool, String> {
             }
         }
     }
-    
+
     let mut new_rules = Vec::new();
-    
+
     for rule in rules {
         if let Some(path) = existing_rule_to_file.get(&rule.id) {
             if let Some(vec) = file_rules_map.get_mut(path) {
@@ -125,15 +126,14 @@ pub async fn import_rules(rules: Vec<CleanRule>) -> Result<bool, String> {
             new_rules.push(rule);
         }
     }
-    
+
     // Save updated files
     for (path, vec) in file_rules_map {
         let json = serde_json::to_string_pretty(&vec)
             .map_err(|e| format!("Failed to serialize rules: {}", e))?;
-        fs::write(path, json)
-            .map_err(|e| format!("Failed to write rule file: {}", e))?;
+        fs::write(path, json).map_err(|e| format!("Failed to write rule file: {}", e))?;
     }
-    
+
     // Save new rules in custom_imported.json
     if !new_rules.is_empty() {
         let imported_path = custom_dir.join("custom_imported.json");
@@ -146,7 +146,7 @@ pub async fn import_rules(rules: Vec<CleanRule>) -> Result<bool, String> {
         } else {
             Vec::new()
         };
-        
+
         for rule in new_rules {
             if let Some(pos) = existing_imported.iter().position(|r| r.id == rule.id) {
                 existing_imported[pos] = rule;
@@ -154,13 +154,13 @@ pub async fn import_rules(rules: Vec<CleanRule>) -> Result<bool, String> {
                 existing_imported.push(rule);
             }
         }
-        
+
         let json = serde_json::to_string_pretty(&existing_imported)
             .map_err(|e| format!("Failed to serialize imported rules: {}", e))?;
         fs::write(imported_path, json)
             .map_err(|e| format!("Failed to write imported rules: {}", e))?;
     }
-    
+
     Ok(true)
 }
 
@@ -172,8 +172,7 @@ pub async fn add_custom_rule(rule: CleanRule) -> Result<bool, String> {
 
     let json = serde_json::to_string_pretty(&vec![&rule])
         .map_err(|e| format!("Failed to serialize rule: {}", e))?;
-    fs::write(&file_path, json)
-        .map_err(|e| format!("Failed to write custom rule file: {}", e))?;
+    fs::write(&file_path, json).map_err(|e| format!("Failed to write custom rule file: {}", e))?;
 
     Ok(true)
 }
@@ -229,8 +228,8 @@ pub async fn delete_group(id: String) -> Result<bool, String> {
 
 /// Get the user custom rules directory, creating it if needed.
 fn get_custom_rules_dir() -> Result<PathBuf, String> {
-    let config_dir = dirs::config_dir()
-        .ok_or_else(|| "Could not determine config directory".to_string())?;
+    let config_dir =
+        dirs::config_dir().ok_or_else(|| "Could not determine config directory".to_string())?;
     let custom_dir = config_dir.join("xclearp").join("rules");
     fs::create_dir_all(&custom_dir)
         .map_err(|e| format!("Failed to create custom rules directory: {}", e))?;

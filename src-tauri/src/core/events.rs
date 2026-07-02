@@ -10,11 +10,22 @@ pub enum DiskEvent {
     #[serde(rename_all = "camelCase")]
     EntryDiscovered { scan_path: String, entry: FileEntry },
     #[serde(rename_all = "camelCase")]
-    EntryUpdated { scan_path: String, path: String, size: u64 },
+    EntryUpdated {
+        scan_path: String,
+        path: String,
+        size: u64,
+    },
     #[serde(rename_all = "camelCase")]
-    Progress { current_path: String, entries_count: u64 },
+    Progress {
+        current_path: String,
+        entries_count: u64,
+    },
     #[serde(rename_all = "camelCase")]
-    Completed { path: String, total_entries: u64, duration_ms: u64 },
+    Completed {
+        path: String,
+        total_entries: u64,
+        duration_ms: u64,
+    },
     #[serde(rename_all = "camelCase")]
     Error { path: String, message: String },
 }
@@ -25,10 +36,7 @@ pub enum DiskEvent {
 #[serde(tag = "type")]
 pub enum CleanEvent {
     #[serde(rename = "scan_started")]
-    ScanStarted {
-        op_id: String,
-        timestamp: String,
-    },
+    ScanStarted { op_id: String, timestamp: String },
     #[serde(rename = "file_discovered")]
     FileDiscovered {
         op_id: String,

@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use crate::core::rules::CleanRule;
-use super::{PermissionStatus, PlatformError, PlatformProvider};
 use super::common;
+use super::{PermissionStatus, PlatformError, PlatformProvider};
+use crate::core::rules::CleanRule;
 
 /// macOS-specific platform provider.
 pub struct MacOSProvider;
@@ -103,10 +103,13 @@ impl PlatformProvider for MacOSProvider {
     }
 
     fn safe_remove(&self, path: &Path) -> Result<(), PlatformError> {
-        common::safe_remove_impl(path, &PlatformError {
-            message: "Failed to remove".to_string(),
-            path: Some(path.to_path_buf()),
-        })
+        common::safe_remove_impl(
+            path,
+            &PlatformError {
+                message: "Failed to remove".to_string(),
+                path: Some(path.to_path_buf()),
+            },
+        )
     }
 
     fn empty_trash(&self) -> Result<(), PlatformError> {

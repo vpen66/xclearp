@@ -35,11 +35,7 @@ fn main() {
                 Arc::from(create_platform_provider());
 
             // Create CleanEngine and register as managed state
-            let engine = CleanEngine::new(
-                Arc::clone(&event_bus),
-                whitelist,
-                platform,
-            );
+            let engine = CleanEngine::new(Arc::clone(&event_bus), whitelist, platform);
             app.manage(engine);
             app.manage(disk::DiskAnalysisState::default());
 

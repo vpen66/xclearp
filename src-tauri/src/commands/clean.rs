@@ -13,9 +13,7 @@ pub async fn start_clean(
         return Err("No targets provided for cleaning".to_string());
     }
 
-    let op_id = engine
-        .start_clean(targets)
-        .map_err(|e| e.to_string())?;
+    let op_id = engine.start_clean(targets).map_err(|e| e.to_string())?;
 
     Ok(serde_json::json!({
         "op_id": op_id,

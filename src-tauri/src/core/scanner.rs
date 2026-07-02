@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 
-use glob::Pattern;
 use glob;
+use glob::Pattern;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use walkdir::WalkDir;
@@ -345,7 +345,11 @@ async fn scan_directory_impl(
             let file_size = metadata.len();
 
             // Whitelist check
-            if whitelist.read().unwrap().is_excluded(entry_path, &rule.id, &rule.group) {
+            if whitelist
+                .read()
+                .unwrap()
+                .is_excluded(entry_path, &rule.id, &rule.group)
+            {
                 skipped_count += 1;
                 skipped_size += file_size;
                 continue;

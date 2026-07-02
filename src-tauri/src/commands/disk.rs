@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
-use std::time::Instant;
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
-use walkdir::WalkDir;
+use std::path::{Path, PathBuf};
+use std::time::Instant;
 use tauri::{command, Emitter};
 use tokio_util::sync::CancellationToken;
+use walkdir::WalkDir;
 
 use crate::core::events::DiskEvent;
 use crate::core::whitelist::Whitelist;
@@ -20,13 +20,18 @@ impl Default for DiskAnalysisState {
     fn default() -> Self {
         Self {
             cancel_token: std::sync::Mutex::new(None),
-            size_cache: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            size_cache: std::sync::Arc::new(
+                std::sync::Mutex::new(std::collections::HashMap::new()),
+            ),
         }
     }
 }
 
 /// Helper function to match path against pre-compiled exclude patterns.
-fn check_exclude_optimized(path: &Path, compiled_excludes: &[(glob::Pattern, bool)]) -> Option<bool> {
+fn check_exclude_optimized(
+    path: &Path,
+    compiled_excludes: &[(glob::Pattern, bool)],
+) -> Option<bool> {
     let path_str = path.to_string_lossy().replace('\\', "/");
     for (pattern, eye_open) in compiled_excludes {
         if pattern.matches(&path_str)
@@ -49,7 +54,7 @@ pub struct FileEntry {
     pub is_dir: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_symlink: Option<bool>,
-    pub modified: Option<String>, // ISO 8601 时间戳
+    pub modified: Option<String>,    // ISO 8601 时间戳
     pub children_count: Option<u64>, // 目录的直接子条目数量
     #[serde(skip_serializing_if = "Option::is_none")]
     pub calculating: Option<bool>,
@@ -85,7 +90,8 @@ pub async fn list_directory(
     let mut entries = Vec::new();
 
     // Pre-compile global excludes once
-    let compiled_excludes: Vec<(glob::Pattern, bool)> = wl.global_excludes
+    let compiled_excludes: Vec<(glob::Pattern, bool)> = wl
+        .global_excludes
         .iter()
         .filter(|pat| !wl.disabled_patterns.contains(*pat))
         .filter_map(|pat| {
@@ -144,13 +150,10 @@ pub async fn list_directory(
             metadata.blocks() * 512
         };
 
-        let modified = metadata
-            .modified()
-            .ok()
-            .map(|t| {
-                let datetime: chrono::DateTime<chrono::Utc> = t.into();
-                datetime.to_rfc3339()
-            });
+        let modified = metadata.modified().ok().map(|t| {
+            let datetime: chrono::DateTime<chrono::Utc> = t.into();
+            datetime.to_rfc3339()
+        });
 
         let children_count = if is_dir {
             Some(count_children(&entry.path()))
@@ -253,7 +256,8 @@ pub async fn start_disk_analysis(
             let wl_task = wl.clone();
 
             // Pre-compile global excludes once
-            let compiled_excludes: Vec<(glob::Pattern, bool)> = wl_task.global_excludes
+            let compiled_excludes: Vec<(glob::Pattern, bool)> = wl_task
+                .global_excludes
                 .iter()
                 .filter(|pat| !wl_task.disabled_patterns.contains(*pat))
                 .filter_map(|pat| {
@@ -320,13 +324,10 @@ pub async fn start_disk_analysis(
                     metadata.len()
                 };
 
-                let modified = metadata
-                    .modified()
-                    .ok()
-                    .map(|t| {
-                        let datetime: chrono::DateTime<chrono::Utc> = t.into();
-                        datetime.to_rfc3339()
-                    });
+                let modified = metadata.modified().ok().map(|t| {
+                    let datetime: chrono::DateTime<chrono::Utc> = t.into();
+                    datetime.to_rfc3339()
+                });
 
                 let children_count = if is_dir {
                     Some(count_children(&entry.path()))
@@ -334,10 +335,11 @@ pub async fn start_disk_analysis(
                     None
                 };
 
-                let is_whitelisted = match check_exclude_optimized(&entry.path(), &compiled_excludes) {
-                    Some(true) => Some(true),
-                    _ => None,
-                };
+                let is_whitelisted =
+                    match check_exclude_optimized(&entry.path(), &compiled_excludes) {
+                        Some(true) => Some(true),
+                        _ => None,
+                    };
 
                 let is_calculating = is_async_dir && cached_size.is_none();
 
@@ -373,12 +375,12 @@ pub async fn start_disk_analysis(
                         if cancel_token_inner.is_cancelled() {
                             return;
                         }
-                        
+
                         let _permit = tokio::select! {
                             res = sem_inner.acquire() => res.ok(),
                             _ = cancel_token_inner.cancelled() => None,
                         };
-                        
+
                         if _permit.is_none() {
                             return;
                         }
@@ -448,35 +450,38 @@ pub async fn get_disk_usage() -> Result<DiskUsage, String> {
 
     #[cfg(target_os = "macos")]
     {
-        use objc2::{msg_send, ClassType, Message};
         use objc2::rc::Retained;
         use objc2::runtime::AnyObject;
-        use objc2_foundation::{NSURL, NSArray, ns_string};
+        use objc2::{msg_send, ClassType, Message};
+        use objc2_foundation::{ns_string, NSArray, NSURL};
 
         let result = unsafe {
             || -> Option<DiskUsage> {
-                let url: Retained<NSURL> = msg_send![NSURL::class(), fileURLWithPath: ns_string!("/")];
+                let url: Retained<NSURL> =
+                    msg_send![NSURL::class(), fileURLWithPath: ns_string!("/")];
                 let keys = NSArray::from_retained_slice(&[
                     ns_string!("NSURLVolumeTotalCapacityKey").retain(),
                     ns_string!("NSURLVolumeAvailableCapacityForImportantUsageKey").retain(),
                 ]);
                 let mut error: *mut objc2_foundation::NSError = std::ptr::null_mut();
-                let values: Option<Retained<AnyObject>> = msg_send![&url, resourceValuesForKeys: &*keys, error: &mut error];
-                
+                let values: Option<Retained<AnyObject>> =
+                    msg_send![&url, resourceValuesForKeys: &*keys, error: &mut error];
+
                 let dict = values?;
-                let total_obj: Option<Retained<AnyObject>> = msg_send![&dict, objectForKey: ns_string!("NSURLVolumeTotalCapacityKey")];
+                let total_obj: Option<Retained<AnyObject>> =
+                    msg_send![&dict, objectForKey: ns_string!("NSURLVolumeTotalCapacityKey")];
                 let avail_obj: Option<Retained<AnyObject>> = msg_send![&dict, objectForKey: ns_string!("NSURLVolumeAvailableCapacityForImportantUsageKey")];
-                
+
                 let total_obj = total_obj?;
                 let avail_obj = avail_obj?;
-                
+
                 let total: i64 = msg_send![&total_obj, longLongValue];
                 let available: i64 = msg_send![&avail_obj, longLongValue];
-                
+
                 let total = total as u64;
                 let available = available as u64;
                 let used = total.saturating_sub(available);
-                
+
                 Some(DiskUsage {
                     total,
                     used,
@@ -526,7 +531,8 @@ fn calculate_dir_size_limited(path: &Path, limit: u64, wl: &Whitelist) -> u64 {
     let mut total: u64 = 0;
 
     // Pre-compile global excludes once
-    let compiled_excludes: Vec<(glob::Pattern, bool)> = wl.global_excludes
+    let compiled_excludes: Vec<(glob::Pattern, bool)> = wl
+        .global_excludes
         .iter()
         .filter(|pat| !wl.disabled_patterns.contains(*pat))
         .filter_map(|pat| {
@@ -577,7 +583,8 @@ fn calculate_dir_size(path: &Path, wl: &Whitelist, cancel_token: &CancellationTo
     let mut total: u64 = 0;
 
     // Pre-compile global excludes once
-    let compiled_excludes: Vec<(glob::Pattern, bool)> = wl.global_excludes
+    let compiled_excludes: Vec<(glob::Pattern, bool)> = wl
+        .global_excludes
         .iter()
         .filter(|pat| !wl.disabled_patterns.contains(*pat))
         .filter_map(|pat| {
@@ -685,9 +692,7 @@ pub async fn open_path(path: String) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         let status = if p.is_dir() {
-            std::process::Command::new("open")
-                .arg(&p)
-                .status()
+            std::process::Command::new("open").arg(&p).status()
         } else {
             std::process::Command::new("open")
                 .arg("-R")
@@ -704,9 +709,7 @@ pub async fn open_path(path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         let status = if p.is_dir() {
-            std::process::Command::new("explorer")
-                .arg(&p)
-                .status()
+            std::process::Command::new("explorer").arg(&p).status()
         } else {
             std::process::Command::new("explorer")
                 .arg(format!("/select,{}", p.display()))
@@ -725,9 +728,7 @@ pub async fn open_path(path: String) -> Result<(), String> {
         } else {
             p.parent().unwrap_or(&p).to_path_buf()
         };
-        let status = std::process::Command::new("xdg-open")
-            .arg(&target)
-            .status();
+        let status = std::process::Command::new("xdg-open").arg(&target).status();
         match status {
             Ok(s) if s.success() => Ok(()),
             Ok(s) => Err(format!("Command 'xdg-open' failed with exit status: {}", s)),
@@ -746,4 +747,3 @@ pub async fn open_path(path: String) -> Result<(), String> {
 pub fn get_platform() -> &'static str {
     crate::core::rules::current_platform()
 }
-

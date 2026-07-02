@@ -113,10 +113,7 @@ impl CleanEngine {
     }
 
     /// Execute a full scan flow in the background. Returns the op_id immediately.
-    pub fn start_scan(
-        &self,
-        rules: &[CleanRule],
-    ) -> Result<String, EngineError> {
+    pub fn start_scan(&self, rules: &[CleanRule]) -> Result<String, EngineError> {
         let op_id = Uuid::new_v4().to_string();
         let scanner = Arc::clone(&self.scanner);
         let platform = Arc::clone(&self.platform);
@@ -137,10 +134,7 @@ impl CleanEngine {
     }
 
     /// Execute a clean operation in the background. Returns the op_id immediately.
-    pub fn start_clean(
-        &self,
-        targets: Vec<ScanTarget>,
-    ) -> Result<String, EngineError> {
+    pub fn start_clean(&self, targets: Vec<ScanTarget>) -> Result<String, EngineError> {
         let op_id = Uuid::new_v4().to_string();
         let cleaner = Arc::clone(&self.cleaner);
         let platform = Arc::clone(&self.platform);

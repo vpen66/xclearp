@@ -1,8 +1,8 @@
+use dirs;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use dirs;
 
 /// Risk level associated with a cleaning rule.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -140,13 +140,28 @@ pub fn load_all_rules() -> Vec<CleanRule> {
 
     let _ = fs::create_dir_all(&custom_dir);
     let defaults = vec![
-        ("browser_cache.json", include_str!("../../rules/browser_cache.json")),
-        ("system_temp.json", include_str!("../../rules/system_temp.json")),
-        ("system_cache.json", include_str!("../../rules/system_cache.json")),
+        (
+            "browser_cache.json",
+            include_str!("../../rules/browser_cache.json"),
+        ),
+        (
+            "system_temp.json",
+            include_str!("../../rules/system_temp.json"),
+        ),
+        (
+            "system_cache.json",
+            include_str!("../../rules/system_cache.json"),
+        ),
         ("dev_tools.json", include_str!("../../rules/dev_tools.json")),
         ("trash.json", include_str!("../../rules/trash.json")),
-        ("crash_dumps.json", include_str!("../../rules/crash_dumps.json")),
-        ("build_artifacts.json", include_str!("../../rules/build_artifacts.json")),
+        (
+            "crash_dumps.json",
+            include_str!("../../rules/crash_dumps.json"),
+        ),
+        (
+            "build_artifacts.json",
+            include_str!("../../rules/build_artifacts.json"),
+        ),
     ];
     for (filename, content) in defaults {
         let file_path = custom_dir.join(filename);
@@ -174,15 +189,16 @@ pub fn load_rules_from_dir(dir: &Path) -> Result<Vec<CleanRule>, String> {
         return Ok(all_rules);
     }
 
-    let entries = fs::read_dir(dir).map_err(|e| format!("Failed to read rules directory: {}", e))?;
+    let entries =
+        fs::read_dir(dir).map_err(|e| format!("Failed to read rules directory: {}", e))?;
 
     for entry in entries {
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let path = entry.path();
 
         if path.extension().and_then(|e| e.to_str()) == Some("json") {
-            let content =
-                fs::read_to_string(&path).map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
+            let content = fs::read_to_string(&path)
+                .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
             let rules: Vec<CleanRule> = serde_json::from_str(&content)
                 .map_err(|e| format!("Failed to parse {}: {}", path.display(), e))?;
             all_rules.extend(rules);
@@ -191,8 +207,6 @@ pub fn load_rules_from_dir(dir: &Path) -> Result<Vec<CleanRule>, String> {
 
     Ok(all_rules)
 }
-
-
 
 /// Filter rules by the current platform.
 pub fn filter_rules_by_platform(rules: &[CleanRule], platform: &str) -> Vec<CleanRule> {
