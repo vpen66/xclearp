@@ -3,6 +3,7 @@ use std::path::Path;
 use super::PlatformError;
 
 /// Format a file size in bytes to a human-readable string.
+#[allow(dead_code)]
 pub fn format_file_size(bytes: u64) -> String {
     const KB: u64 = 1024;
     const MB: u64 = KB * 1024;
@@ -23,6 +24,7 @@ pub fn format_file_size(bytes: u64) -> String {
 }
 
 /// Normalize a path string by resolving `~` and environment variables.
+#[allow(dead_code)]
 pub fn normalize_path_string(pattern: &str, home: &Path) -> String {
     let mut result = pattern.to_string();
 
@@ -56,6 +58,7 @@ pub fn normalize_path_string(pattern: &str, home: &Path) -> String {
 }
 
 /// Check if a path matches a glob pattern.
+#[allow(dead_code)]
 pub fn matches_glob(path: &str, pattern: &str) -> bool {
     if let Ok(pat) = glob::Pattern::new(pattern) {
         pat.matches(path)

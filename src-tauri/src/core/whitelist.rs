@@ -76,11 +76,13 @@ impl Default for Whitelist {
 
 impl Whitelist {
     /// Create a new empty whitelist.
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Add a global exclusion pattern.
+    #[allow(dead_code)]
     pub fn add_global_exclude(&mut self, pattern: String) {
         if !self.global_excludes.contains(&pattern) {
             self.global_excludes.push(pattern);
@@ -88,6 +90,7 @@ impl Whitelist {
     }
 
     /// Add a group-level exclusion pattern.
+    #[allow(dead_code)]
     pub fn add_group_exclude(&mut self, group_id: &str, pattern: String) {
         let excludes = self.group_excludes.entry(group_id.to_string()).or_default();
         if !excludes.contains(&pattern) {
@@ -96,6 +99,7 @@ impl Whitelist {
     }
 
     /// Add a rule-level exclusion pattern.
+    #[allow(dead_code)]
     pub fn add_rule_exclude(&mut self, rule_id: &str, pattern: String) {
         let excludes = self.rule_excludes.entry(rule_id.to_string()).or_default();
         if !excludes.contains(&pattern) {
@@ -136,6 +140,7 @@ impl Whitelist {
     /// - `Some(true)` if it matches an active pattern and the eye is OPEN (show in disk analysis, but mark as whitelist).
     /// - `Some(false)` if it matches an active pattern and the eye is CLOSED (completely exclude from disk analysis).
     /// - `None` if it does not match any active global exclude pattern.
+    #[allow(dead_code)]
     pub fn check_disk_analysis_exclude(&self, path: &Path) -> Option<bool> {
         let path_str = path.to_string_lossy();
 
@@ -157,6 +162,7 @@ impl Whitelist {
 }
 
 /// Check if a path matches the glob pattern itself, with trailing slash, or as a parent directory.
+#[allow(dead_code)]
 fn matches_path_or_parent(path_str: &str, pattern_str: &str) -> bool {
     // Normalize path separators to forward slashes for glob matching
     let path_str = path_str.replace('\\', "/");
@@ -202,11 +208,7 @@ pub fn load_whitelist() -> Whitelist {
     let path = get_whitelist_file_path();
     let mut wl = if path.exists() {
         if let Ok(content) = fs::read_to_string(&path) {
-            if let Ok(parsed) = serde_json::from_str::<Whitelist>(&content) {
-                parsed
-            } else {
-                Whitelist::default()
-            }
+            serde_json::from_str::<Whitelist>(&content).unwrap_or_default()
         } else {
             Whitelist::default()
         }

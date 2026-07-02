@@ -180,7 +180,7 @@ pub async fn list_directory(
     }
 
     // 按大小降序排序
-    entries.sort_by(|a, b| b.size.cmp(&a.size));
+    entries.sort_by_key(|b| std::cmp::Reverse(b.size));
 
     Ok(entries)
 }
@@ -318,8 +318,6 @@ pub async fn start_disk_analysis(
                     metadata.len()
                 } else if is_async_dir {
                     0
-                } else if is_dir {
-                    0
                 } else {
                     metadata.len()
                 };
@@ -412,7 +410,7 @@ pub async fn start_disk_analysis(
                 }
 
                 entries_count += 1;
-                if entries_count % 10 == 0 {
+                if entries_count.is_multiple_of(10) {
                     let progress_event = DiskEvent::Progress {
                         current_path: path_for_task.clone(),
                         entries_count,
@@ -554,7 +552,7 @@ fn calculate_dir_size_limited(path: &Path, limit: u64, wl: &Whitelist) -> u64 {
         if let Some(show) = check_exclude_optimized(p, &compiled_excludes) {
             if !show {
                 if p.is_dir() {
-                    let _ = walker.skip_current_dir();
+                    walker.skip_current_dir();
                 }
                 continue;
             }
@@ -609,7 +607,7 @@ fn calculate_dir_size(path: &Path, wl: &Whitelist, cancel_token: &CancellationTo
         if let Some(show) = check_exclude_optimized(p, &compiled_excludes) {
             if !show {
                 if p.is_dir() {
-                    let _ = walker.skip_current_dir();
+                    walker.skip_current_dir();
                 }
                 continue;
             }

@@ -219,15 +219,15 @@ fn resolve_path_with_glob(pattern: &str, platform: &dyn PlatformProvider) -> Vec
     }
 
     // First expand ~ to home directory
-    let expanded = if pattern.starts_with('~') {
+    let expanded = if let Some(stripped) = pattern.strip_prefix('~') {
         if let Some(home) = dirs::home_dir() {
             let home_str = home.to_string_lossy();
             if pattern.starts_with("~/") {
-                format!("{}{}", home_str, &pattern[1..])
+                format!("{}{}", home_str, stripped)
             } else if pattern == "~" {
                 home_str.to_string()
             } else {
-                format!("{}/{}", home_str, &pattern[1..])
+                format!("{}/{}", home_str, stripped)
             }
         } else {
             pattern.to_string()
@@ -413,7 +413,7 @@ async fn scan_directory_impl(
             });
 
             // Emit scan_progress every 100 files
-            if scanned_count % 100 == 0 {
+            if scanned_count.is_multiple_of(100) {
                 let _ = event_bus.emit(CleanEvent::ScanProgress {
                     op_id: op_id.clone(),
                     scanned_files: scanned_count,

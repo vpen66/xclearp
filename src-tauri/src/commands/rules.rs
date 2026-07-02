@@ -30,19 +30,17 @@ pub async fn update_rule(rule: CleanRule) -> Result<bool, String> {
     // Try to update the rule in place in existing files
     let mut updated = false;
     if let Ok(entries) = fs::read_dir(&custom_dir) {
-        for entry in entries {
-            if let Ok(entry) = entry {
-                let path = entry.path();
-                if path.extension().and_then(|e| e.to_str()) == Some("json") {
-                    if let Ok(content) = fs::read_to_string(&path) {
-                        if let Ok(mut rules) = serde_json::from_str::<Vec<CleanRule>>(&content) {
-                            if let Some(pos) = rules.iter().position(|r| r.id == rule.id) {
-                                rules[pos] = rule.clone();
-                                if let Ok(json) = serde_json::to_string_pretty(&rules) {
-                                    if fs::write(&path, json).is_ok() {
-                                        updated = true;
-                                        break;
-                                    }
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("json") {
+                if let Ok(content) = fs::read_to_string(&path) {
+                    if let Ok(mut rules) = serde_json::from_str::<Vec<CleanRule>>(&content) {
+                        if let Some(pos) = rules.iter().position(|r| r.id == rule.id) {
+                            rules[pos] = rule.clone();
+                            if let Ok(json) = serde_json::to_string_pretty(&rules) {
+                                if fs::write(&path, json).is_ok() {
+                                    updated = true;
+                                    break;
                                 }
                             }
                         }
@@ -94,17 +92,15 @@ pub async fn import_rules(rules: Vec<CleanRule>) -> Result<bool, String> {
         std::collections::HashMap::new();
 
     if let Ok(entries) = fs::read_dir(&custom_dir) {
-        for entry in entries {
-            if let Ok(entry) = entry {
-                let path = entry.path();
-                if path.extension().and_then(|e| e.to_str()) == Some("json") {
-                    if let Ok(content) = fs::read_to_string(&path) {
-                        if let Ok(file_rules) = serde_json::from_str::<Vec<CleanRule>>(&content) {
-                            for r in &file_rules {
-                                existing_rule_to_file.insert(r.id.clone(), path.clone());
-                            }
-                            file_rules_map.insert(path, file_rules);
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("json") {
+                if let Ok(content) = fs::read_to_string(&path) {
+                    if let Ok(file_rules) = serde_json::from_str::<Vec<CleanRule>>(&content) {
+                        for r in &file_rules {
+                            existing_rule_to_file.insert(r.id.clone(), path.clone());
                         }
+                        file_rules_map.insert(path, file_rules);
                     }
                 }
             }
@@ -206,15 +202,13 @@ pub async fn delete_group(id: String) -> Result<bool, String> {
     let custom_dir = get_custom_rules_dir()?;
     if custom_dir.exists() {
         if let Ok(entries) = fs::read_dir(&custom_dir) {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let path = entry.path();
-                    if path.extension().and_then(|e| e.to_str()) == Some("json") {
-                        if let Ok(content) = fs::read_to_string(&path) {
-                            if let Ok(rules) = serde_json::from_str::<Vec<CleanRule>>(&content) {
-                                if rules.iter().any(|r| r.group == id) {
-                                    let _ = fs::remove_file(path);
-                                }
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) == Some("json") {
+                    if let Ok(content) = fs::read_to_string(&path) {
+                        if let Ok(rules) = serde_json::from_str::<Vec<CleanRule>>(&content) {
+                            if rules.iter().any(|r| r.group == id) {
+                                let _ = fs::remove_file(path);
                             }
                         }
                     }

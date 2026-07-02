@@ -28,6 +28,7 @@ impl std::error::Error for PlatformError {}
 
 /// Permission status for a given path.
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum PermissionStatus {
     /// Full read/write access.
     Granted,
@@ -41,6 +42,7 @@ pub enum PermissionStatus {
 
 /// Platform abstraction trait (strategy pattern).
 /// Each OS implements this trait to provide platform-specific behavior.
+#[allow(dead_code)]
 pub trait PlatformProvider: Send + Sync {
     /// Return the default cleaning rules for this platform.
     fn default_rules(&self) -> Vec<CleanRule>;
