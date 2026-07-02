@@ -7,6 +7,16 @@ use tauri::{command, Emitter};
 use tokio_util::sync::CancellationToken;
 use walkdir::WalkDir;
 
+#[cfg(unix)]
+fn get_file_size(metadata: &std::fs::Metadata) -> u64 {
+    metadata.blocks() * 512
+}
+
+#[cfg(not(unix))]
+fn get_file_size(metadata: &std::fs::Metadata) -> u64 {
+    metadata.len()
+}
+
 use crate::core::events::DiskEvent;
 use crate::core::whitelist::Whitelist;
 
@@ -147,7 +157,7 @@ pub async fn list_directory(
         } else {
             // For regular files, use actual disk usage (blocks * 512) to handle sparse files correctly
             // On macOS/Linux, blocks represents 512-byte sectors actually allocated
-            metadata.blocks() * 512
+            get_file_size(&metadata)
         };
 
         let modified = metadata.modified().ok().map(|t| {
@@ -446,6 +456,48 @@ pub async fn start_disk_analysis(
 pub async fn get_disk_usage() -> Result<DiskUsage, String> {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
 
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+
+        extern "system" {
+            fn GetDiskFreeSpaceExW(
+                lpDirectoryName: *const u16,
+                lpFreeBytesAvailableToCaller: *mut u64,
+                lpTotalNumberOfBytes: *mut u64,
+                lpTotalNumberOfFreeBytes: *mut u64,
+            ) -> i32;
+        }
+
+        let mut path_utf16: Vec<u16> = home.as_os_str().encode_wide().collect();
+        path_utf16.push(0);
+
+        let mut free_bytes_available: u64 = 0;
+        let mut total_bytes: u64 = 0;
+        let mut total_free_bytes: u64 = 0;
+
+        let res = unsafe {
+            GetDiskFreeSpaceExW(
+                path_utf16.as_ptr(),
+                &mut free_bytes_available,
+                &mut total_bytes,
+                &mut total_free_bytes,
+            )
+        };
+
+        if res != 0 {
+            let total = total_bytes;
+            let available = free_bytes_available;
+            let used = total.saturating_sub(available);
+            return Ok(DiskUsage {
+                total,
+                used,
+                available,
+                mount_point: home.to_string_lossy().to_string(),
+            });
+        }
+    }
+
     #[cfg(target_os = "macos")]
     {
         use objc2::rc::Retained;
@@ -566,7 +618,7 @@ fn calculate_dir_size_limited(path: &Path, limit: u64, wl: &Whitelist) -> u64 {
             }
             if metadata.is_file() {
                 // Use actual disk usage (blocks * 512) to handle sparse files correctly
-                total += metadata.blocks() * 512;
+                total += get_file_size(&metadata);
                 if total >= limit {
                     return total;
                 }
@@ -615,7 +667,7 @@ fn calculate_dir_size(path: &Path, wl: &Whitelist, cancel_token: &CancellationTo
 
         if let Ok(metadata) = std::fs::symlink_metadata(p) {
             if !metadata.file_type().is_symlink() && metadata.is_file() {
-                total += metadata.blocks() * 512;
+                total += get_file_size(&metadata);
             }
         }
     }
