@@ -38,6 +38,7 @@ export function useUpdater() {
     if (!updateInfo) return;
     try {
       setStatus('downloading');
+      setErrorMsg(null);
       let downloadedLength = 0;
       let contentLength = 0;
 
@@ -52,11 +53,15 @@ export function useUpdater() {
             setDownloadProgress((prev) => ({ ...prev, downloaded: downloadedLength }));
             break;
           case 'Finished':
+            // Update completed successfully, will relaunch immediately
             break;
         }
       });
 
-      // After successful install, relaunch using custom command
+      // After successful install, wait a moment to ensure files are written
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Relaunch the application
       await invoke('relaunch');
     } catch (err) {
       console.error('Failed to install update:', err);

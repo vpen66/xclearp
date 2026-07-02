@@ -781,9 +781,9 @@ export default function SettingsView({
                   {updaterStatus === 'upToDate' && (
                     <span
                       onClick={() => checkForUpdates()}
-                      className="text-gray-400 hover:text-blue-400 cursor-pointer flex items-center gap-1 font-medium transition-colors"
+                      className="text-emerald-400 hover:text-emerald-300 cursor-pointer flex items-center gap-1 font-medium transition-colors"
                     >
-                      已是最新版本 <RefreshCw size={10} />
+                      已是最新版本 <Check size={10} />
                     </span>
                   )}
                   {updaterStatus === 'available' && (
@@ -792,8 +792,8 @@ export default function SettingsView({
                     </span>
                   )}
                   {updaterStatus === 'downloading' && (
-                    <span className="text-blue-400 font-medium">
-                      正在下载更新...
+                    <span className="text-blue-400 font-medium flex items-center gap-1">
+                      <Download size={10} className="animate-pulse" /> 正在下载更新...
                     </span>
                   )}
                   {updaterStatus === 'error' && (
@@ -820,15 +820,19 @@ export default function SettingsView({
               {(updaterStatus === 'available' || updaterStatus === 'downloading') && (
                 <div className="w-full max-w-sm border border-amber-500/20 bg-amber-500/5 rounded-xl p-4 space-y-3 animate-fade-in">
                   <div className="flex items-start gap-3">
-                    <ArrowUpCircle className="text-amber-400 mt-0.5 shrink-0" size={18} />
-                    <div className="space-y-1">
+                    {updaterStatus === 'downloading' ? (
+                      <Download className="text-blue-400 mt-0.5 shrink-0 animate-pulse" size={18} />
+                    ) : (
+                      <ArrowUpCircle className="text-amber-400 mt-0.5 shrink-0" size={18} />
+                    )}
+                    <div className="space-y-1 flex-1">
                       <h4 className="text-xs font-bold text-gray-200">
-                        版本更新可用于 XClearp
+                        {updaterStatus === 'downloading' ? '正在下载更新...' : '版本更新可用于 XClearp'}
                       </h4>
                       <p className="text-[11px] text-gray-400 leading-normal">
                         最新版本: v{updateInfo?.version}
                       </p>
-                      {updateInfo?.body && (
+                      {updateInfo?.body && updaterStatus !== 'downloading' && (
                         <div className="text-[10px] text-gray-500 bg-black/10 rounded p-1.5 max-h-20 overflow-y-auto mt-1 border border-gray-800/40">
                           {updateInfo.body}
                         </div>
