@@ -6,6 +6,7 @@ import RuleEditor from "./RuleEditor";
 import WhitelistManager from "./WhitelistManager";
 import { useToast } from "./Toast";
 import { checkDiskPermissions, openSystemSettingsPane, type PermissionStatus, getPlatform } from "../lib/ipc";
+import { useI18n } from "../lib/i18n";
 import {
   Sliders,
   ListCollapse,
@@ -54,15 +55,15 @@ interface SettingsViewProps {
 type SettingsTab = "general" | "rules" | "whitelist" | "about";
 
 const AVAILABLE_ICONS = [
-  { name: "folder", label: "文件夹" },
-  { name: "globe", label: "浏览器" },
-  { name: "hard-drive", label: "磁盘" },
-  { name: "code", label: "代码" },
-  { name: "trash-2", label: "废纸篓" },
-  { name: "alert-triangle", label: "警告" },
-  { name: "database", label: "数据库" },
-  { name: "cpu", label: "系统" },
-  { name: "settings", label: "配置" }
+  { name: "folder" },
+  { name: "globe" },
+  { name: "hard-drive" },
+  { name: "code" },
+  { name: "trash-2" },
+  { name: "alert-triangle" },
+  { name: "database" },
+  { name: "cpu" },
+  { name: "settings" }
 ];
 
 export default function SettingsView({
@@ -79,6 +80,7 @@ export default function SettingsView({
   setGeneralSettings,
 }: SettingsViewProps) {
   const toast = useToast();
+  const { locale, setLocale, t } = useI18n();
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const [editingRule, setEditingRule] = useState<CleanRule | null>(null);
@@ -158,13 +160,13 @@ export default function SettingsView({
         if (rulesToImport.length > 0 && rulesToImport[0].id && rulesToImport[0].name) {
           if (onImportRules) {
             await onImportRules(rulesToImport);
-            alert("规则导入成功！");
+            alert(t("settings.alert.import_success"));
           }
         } else {
-          alert("规则 JSON 格式不正确，期望是一个规则数组或规则对象");
+          alert(t("settings.alert.import_format"));
         }
       } catch (err) {
-        alert("导入失败: " + err);
+        alert(t("settings.alert.import_error").replace("{error}", String(err)));
       }
     };
     reader.readAsText(file);
@@ -199,14 +201,14 @@ export default function SettingsView({
     const groupName = newGroupName.trim();
     try {
       await onAddGroup(groupName, newGroupDesc.trim(), newGroupIcon);
-      toast.success(`成功创建规则分组 "${groupName}"！`);
+      toast.success(t("settings.toast.group_created").replace("{name}", groupName));
       setNewGroupName("");
       setNewGroupDesc("");
       setNewGroupIcon("folder");
       setShowNewGroupModal(false);
     } catch (e) {
       console.error("Failed to create group:", e);
-      toast.error(`创建规则分组失败: ${e}`);
+      toast.error(t("settings.toast.group_create_failed").replace("{error}", String(e)));
     }
   };
 
@@ -260,9 +262,9 @@ export default function SettingsView({
     <div className="space-y-6">
       {/* Title */}
       <div>
-        <h2 className="text-2xl font-bold text-gray-50 tracking-tight">系统设置</h2>
+        <h2 className="text-2xl font-bold text-gray-50 tracking-tight">{t("settings.title")}</h2>
         <p className="text-sm text-gray-400 mt-1">
-          在这里管理您的个人偏好、自启动行为以及清理扫描的规则库。
+          {t("settings.subtitle")}
         </p>
       </div>
 
@@ -279,7 +281,7 @@ export default function SettingsView({
             }`}
           >
             <Sliders size={16} />
-            通用设置
+            {t("settings.tab.general")}
           </button>
           <button
             onClick={() => setActiveTab("rules")}
@@ -290,7 +292,7 @@ export default function SettingsView({
             }`}
           >
             <ListCollapse size={16} />
-            清理规则
+            {t("settings.tab.rules")}
           </button>
           <button
             onClick={() => setActiveTab("whitelist")}
@@ -301,7 +303,7 @@ export default function SettingsView({
             }`}
           >
             <ShieldCheck size={16} />
-            白名单
+            {t("settings.tab.whitelist")}
           </button>
           <button
             onClick={() => setActiveTab("about")}
@@ -312,7 +314,7 @@ export default function SettingsView({
             }`}
           >
             <Info size={16} />
-            关于软件
+            {t("settings.tab.about")}
           </button>
         </div>
 
@@ -321,8 +323,8 @@ export default function SettingsView({
           {activeTab === "general" && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-base font-semibold text-gray-100">通用配置</h3>
-                <p className="text-xs text-gray-500 mt-0.5">控制程序启动与核心清理行为</p>
+                <h3 className="text-base font-semibold text-gray-100">{t("settings.general.title")}</h3>
+                <p className="text-xs text-gray-500 mt-0.5">{t("settings.general.subtitle")}</p>
               </div>
 
               <div className="space-y-4">
@@ -330,9 +332,9 @@ export default function SettingsView({
                 <div className="flex items-start justify-between p-4 rounded-xl bg-gray-800/20 border border-gray-800/50 hover:bg-gray-800/30 transition-all duration-150">
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-gray-200 cursor-pointer" onClick={() => toggleSetting("startup")}>
-                      开机自启动
+                      {t("settings.general.startup")}
                     </label>
-                    <p className="text-xs text-gray-400">在您的系统登录时自动启动 XClearp 工具</p>
+                    <p className="text-xs text-gray-400">{t("settings.general.startup.desc")}</p>
                   </div>
                   <button
                     onClick={() => toggleSetting("startup")}
@@ -352,9 +354,9 @@ export default function SettingsView({
                 <div className="flex items-start justify-between p-4 rounded-xl bg-gray-800/20 border border-gray-800/50 hover:bg-gray-800/30 transition-all duration-150">
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-gray-200 cursor-pointer" onClick={() => toggleSetting("minToTray")}>
-                      关闭窗口时最小化
+                      {t("settings.general.minToTray")}
                     </label>
-                    <p className="text-xs text-gray-400">点击关闭 (X) 按钮时将程序隐藏到托盘而不是直接退出</p>
+                    <p className="text-xs text-gray-400">{t("settings.general.minToTray.desc")}</p>
                   </div>
                   <button
                     onClick={() => toggleSetting("minToTray")}
@@ -374,9 +376,9 @@ export default function SettingsView({
                 <div className="flex items-start justify-between p-4 rounded-xl bg-gray-800/20 border border-gray-800/50 hover:bg-gray-800/30 transition-all duration-150">
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-gray-200 cursor-pointer" onClick={() => toggleSetting("notifyOnComplete")}>
-                      清理完成系统通知
+                      {t("settings.general.notifyOnComplete")}
                     </label>
-                    <p className="text-xs text-gray-400">当扫描和垃圾清理任务完成时，通过系统横幅通知您</p>
+                    <p className="text-xs text-gray-400">{t("settings.general.notifyOnComplete.desc")}</p>
                   </div>
                   <button
                     onClick={() => toggleSetting("notifyOnComplete")}
@@ -397,13 +399,13 @@ export default function SettingsView({
                   <div className="space-y-1 flex-1 pr-4">
                     <div className="flex items-center gap-2">
                       <label className="text-sm font-medium text-gray-200 cursor-pointer" onClick={() => toggleSetting("deepScan")}>
-                        深度检索模式
+                        {t("settings.general.deepScan")}
                       </label>
                       <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold">
-                        <AlertCircle size={10} /> 耗时较长
+                        <AlertCircle size={10} /> {t("settings.general.deepScan.badge")}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-400">启用该项后，将执行完整的目录层级穿透扫描，查找更隐蔽的缓存残留</p>
+                    <p className="text-xs text-gray-400">{t("settings.general.deepScan.desc")}</p>
                   </div>
                   <button
                     onClick={() => toggleSetting("deepScan")}
@@ -423,9 +425,9 @@ export default function SettingsView({
                 <div className="flex items-start justify-between p-4 rounded-xl bg-gray-800/20 border border-gray-800/50 hover:bg-gray-800/30 transition-all duration-150">
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-gray-200">
-                      界面主题
+                      {t("settings.general.theme")}
                     </label>
-                    <p className="text-xs text-gray-400">切换界面的外观显示色彩风格</p>
+                    <p className="text-xs text-gray-400">{t("settings.general.theme.desc")}</p>
                   </div>
                   <div className="flex bg-gray-950 p-1 rounded-lg border border-gray-850 shrink-0">
                     <button
@@ -437,7 +439,7 @@ export default function SettingsView({
                       }`}
                     >
                       <Sun size={14} />
-                      白天
+                      {t("settings.general.theme.light")}
                     </button>
                     <button
                       onClick={() => setGeneralSettings((prev: any) => ({ ...prev, theme: "dark" }))}
@@ -448,7 +450,7 @@ export default function SettingsView({
                       }`}
                     >
                       <Moon size={14} />
-                      夜晚
+                      {t("settings.general.theme.dark")}
                     </button>
                     <button
                       onClick={() => setGeneralSettings((prev: any) => ({ ...prev, theme: "system" }))}
@@ -459,7 +461,41 @@ export default function SettingsView({
                       }`}
                     >
                       <Monitor size={14} />
-                      跟随系统
+                      {t("settings.general.theme.system")}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Language Selector */}
+                <div className="flex items-start justify-between p-4 rounded-xl bg-gray-800/20 border border-gray-800/50 hover:bg-gray-800/30 transition-all duration-150">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-200">
+                      {t("settings.general.language")}
+                    </label>
+                    <p className="text-xs text-gray-400">{t("settings.general.language.desc")}</p>
+                  </div>
+                  <div className="flex bg-gray-950 p-1 rounded-lg border border-gray-850 shrink-0">
+                    <button
+                      onClick={() => setLocale("zh")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                        locale === "zh"
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "text-gray-400 hover:text-gray-200"
+                      }`}
+                    >
+                      <Globe size={14} />
+                      简体中文
+                    </button>
+                    <button
+                      onClick={() => setLocale("en")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                        locale === "en"
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "text-gray-400 hover:text-gray-200"
+                      }`}
+                    >
+                      <Globe size={14} />
+                      English
                     </button>
                   </div>
                 </div>
@@ -468,20 +504,20 @@ export default function SettingsView({
                 <div className="p-4 rounded-xl bg-gray-800/20 border border-gray-800/50 space-y-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-1">
-                      <h4 className="text-sm font-medium text-gray-200">系统磁盘访问权限</h4>
-                      <p className="text-xs text-gray-400">由于操作系统沙盒与权限保护，部分系统缓存的检索和清理需要额外的授权。</p>
+                      <h4 className="text-sm font-medium text-gray-200">{t("settings.permissions.title")}</h4>
+                      <p className="text-xs text-gray-400">{t("settings.permissions.desc")}</p>
                     </div>
                     {checkingPermissions ? (
-                      <span className="text-xs text-gray-500 animate-pulse shrink-0">检测中...</span>
+                      <span className="text-xs text-gray-500 animate-pulse shrink-0">{t("settings.permissions.checking")}</span>
                     ) : permissionStatus?.hasPermission ? (
                       <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold shrink-0">
                         <ShieldCheck size={12} />
-                        {permissionStatus.platform === "macos" ? "已授予完全磁盘访问" : "已以管理员身份运行"}
+                        {permissionStatus.platform === "macos" ? t("settings.permissions.granted") : t("settings.permissions.granted.admin")}
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 font-semibold shrink-0">
                         <ShieldAlert size={12} />
-                        {permissionStatus?.platform === "macos" ? "未授予完全磁盘访问" : "权限不足 (未以管理员运行)"}
+                        {permissionStatus?.platform === "macos" ? t("settings.permissions.denied") : t("settings.permissions.denied.admin")}
                       </span>
                     )}
                   </div>
@@ -491,12 +527,12 @@ export default function SettingsView({
                       {permissionStatus?.platform === "macos" ? (
                         <>
                           <div className="space-y-1">
-                            <p className="font-semibold text-gray-300">💡 如何在 macOS 上授予“完全磁盘访问权限”？</p>
+                            <p className="font-semibold text-gray-300">{t("settings.permissions.macos.title")}</p>
                             <ol className="list-decimal list-inside space-y-1 text-gray-400 pl-1">
-                              <li>点击下方按钮打开<b>“隐私与安全性”</b>设置面板。</li>
-                              <li>在列表中找到<b>“完全磁盘访问权限” (Full Disk Access)</b>。</li>
-                              <li>开启 <b>XClearp</b> 的权限开关。若列表里没有 XClearp，可点击左下角的 <code className="font-mono bg-gray-850 px-1 py-0.5 rounded text-gray-300">+</code> 按钮并添加本程序。</li>
-                              <li>设置完成后，<b>重启程序</b>即可生效。</li>
+                              <li>{t("settings.permissions.macos.step1")}</li>
+                              <li>{t("settings.permissions.macos.step2")}</li>
+                              <li>{t("settings.permissions.macos.step3")}</li>
+                              <li>{t("settings.permissions.macos.step4")}</li>
                             </ol>
                           </div>
                           <div className="pt-1">
@@ -505,22 +541,22 @@ export default function SettingsView({
                                 try {
                                   await openSystemSettingsPane();
                                 } catch (e) {
-                                  alert(`打开系统设置失败: ${e}`);
+                                  alert(t("settings.alert.open_settings_failed").replace("{error}", String(e)));
                                 }
                               }}
                               className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition-all shadow-md shadow-blue-500/10 flex items-center gap-1.5"
                             >
-                              打开隐私与安全性设置
+                              {t("settings.permissions.macos.button")}
                             </button>
                           </div>
                         </>
                       ) : (
                         <>
                           <div className="space-y-1">
-                            <p className="font-semibold text-gray-300">💡 如何以管理员权限运行？</p>
+                            <p className="font-semibold text-gray-300">{t("settings.permissions.windows.title")}</p>
                             <ul className="list-disc list-inside space-y-1 text-gray-400 pl-1">
-                              <li>关闭当前程序，在 XClearp 快捷方式或 <code className="font-mono bg-gray-850 px-1 py-0.5 rounded text-gray-300">xclearp.exe</code> 文件上<b>右键单击</b>，选择 <b>“以管理员身份运行”</b>。</li>
-                              <li>若希望每次打开都默认以管理员身份运行：右键属性 &rarr; 兼容性 &rarr; 勾选 <b>“以管理员身份运行此程序”</b>，点击确定。</li>
+                              <li>{t("settings.permissions.windows.desc1")}</li>
+                              <li>{t("settings.permissions.windows.desc2")}</li>
                             </ul>
                           </div>
                           <div className="pt-1 flex gap-2">
@@ -529,12 +565,12 @@ export default function SettingsView({
                                 try {
                                   await openSystemSettingsPane();
                                 } catch (e) {
-                                  alert(`打开设置失败: ${e}`);
+                                  alert(t("settings.alert.open_settings_failed_generic").replace("{error}", String(e)));
                                 }
                               }}
                               className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-semibold transition-all border border-gray-700"
                             >
-                              配置 UAC 控制台
+                              {t("settings.permissions.windows.button")}
                             </button>
                           </div>
                         </>
@@ -550,8 +586,8 @@ export default function SettingsView({
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-base font-semibold text-gray-100">清理规则库</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">配置与增删您的文件清理分组及其包含的文件匹配规则</p>
+                  <h3 className="text-base font-semibold text-gray-100">{t("settings.rules.title")}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{t("settings.rules.subtitle")}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -564,22 +600,22 @@ export default function SettingsView({
                   <button
                     onClick={() => document.getElementById("import-rules-input")?.click()}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 hover:border-gray-600 transition-colors"
-                    title="从 JSON 文件导入清理规则"
+                    title={t("settings.rules.import.title")}
                   >
-                    <Upload size={14} /> 导入规则
+                    <Upload size={14} /> {t("settings.rules.import")}
                   </button>
                   <button
                     onClick={handleExportRulesClick}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 hover:border-gray-600 transition-colors"
-                    title="导出所有清理规则为 JSON 文件"
+                    title={t("settings.rules.export.title")}
                   >
-                    <Download size={14} /> 导出规则
+                    <Download size={14} /> {t("settings.rules.export")}
                   </button>
                   <button
                     onClick={() => setShowNewGroupModal(true)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-colors"
                   >
-                    <FolderPlus size={14} /> 新建规则组
+                    <FolderPlus size={14} /> {t("settings.rules.newGroup")}
                   </button>
                 </div>
               </div>
@@ -611,13 +647,13 @@ export default function SettingsView({
                           </div>
                           <div className="text-right mr-1 shrink-0 flex items-center gap-3">
                             <span className="text-xs text-gray-500">
-                              {enabledCount}/{group.rules.length} 启用
+                              {t("settings.rules.enabled.count").replace("{count}", String(enabledCount)).replace("{total}", String(group.rules.length))}
                             </span>
                             {/* Delete Group Button */}
                             <button
                               onClick={(e) => handleDeleteGroupClick(e, group.id, group.name)}
                               className="text-gray-500 hover:text-red-400 p-1 rounded hover:bg-gray-800/60 transition-colors"
-                              title="删除此分组"
+                              title={t("settings.rules.deleteGroup")}
                             >
                               <Trash2 size={14} />
                             </button>
@@ -638,7 +674,7 @@ export default function SettingsView({
                         {isExpanded && (
                           <div className="border-t border-gray-800 px-4 py-3 space-y-2 bg-gray-950/20">
                             {group.rules.length === 0 ? (
-                              <p className="text-xs text-gray-500 text-center py-2">暂无规则，请点击下方按钮新建</p>
+                              <p className="text-xs text-gray-500 text-center py-2">{t("settings.rules.noRules")}</p>
                             ) : (
                               group.rules.map((rule) => (
                                 <div
@@ -688,14 +724,14 @@ export default function SettingsView({
                                           : "bg-green-500/10 text-green-400 border-green-500/20"
                                     }`}
                                   >
-                                    {rule.risk_level === "High" ? "高风险" : rule.risk_level === "Medium" ? "中等" : "安全"}
+                                    {rule.risk_level === "High" ? t("settings.rules.risk.high") : rule.risk_level === "Medium" ? t("settings.rules.risk.medium") : t("settings.rules.risk.low")}
                                   </span>
 
                                   {/* Edit Button */}
                                   <button
                                     onClick={() => setEditingRule(rule)}
                                     className="text-gray-500 hover:text-blue-400 transition-colors p-1.5 rounded-md hover:bg-gray-800/80"
-                                    title="编辑规则"
+                                    title={t("settings.rules.tooltip.edit")}
                                   >
                                     <Edit2 size={13} />
                                   </button>
@@ -705,7 +741,7 @@ export default function SettingsView({
                                     <button
                                       onClick={() => setDeleteTargetRule(rule)}
                                       className="text-gray-500 hover:text-red-400 transition-colors p-1.5 rounded-md hover:bg-gray-800/80"
-                                      title="删除规则"
+                                      title={t("settings.rules.tooltip.delete")}
                                     >
                                       <Trash2 size={13} />
                                     </button>
@@ -719,7 +755,7 @@ export default function SettingsView({
                               onClick={() => setShowNewRule(group.id)}
                               className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-dashed border-gray-800 text-gray-500 hover:border-blue-500/50 hover:text-blue-400 transition-all text-xs bg-gray-950/10"
                             >
-                              <Plus size={14} /> 添加规则
+                              <Plus size={14} /> {t("settings.rules.addRule")}
                             </button>
                           </div>
                         )}
@@ -753,29 +789,29 @@ export default function SettingsView({
 
               {/* Description */}
               <div className="text-center space-y-2 max-w-sm">
-                <h3 className="text-lg font-bold text-gray-100 tracking-tight">XClearp System Utility</h3>
+                <h3 className="text-lg font-bold text-gray-100 tracking-tight">{t("settings.about.title")}</h3>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  跨平台桌面系统清理利器。基于 Tauri + React 构建，致力于提供极速、低内存占用且安全的系统缓存与冗余垃圾清理方案。
+                  {t("settings.about.desc")}
                 </p>
               </div>
 
               {/* Status checklist */}
               <div className="w-full max-w-sm border border-gray-800/80 bg-gray-800/10 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between text-xs border-b border-gray-800 pb-2">
-                  <span className="text-gray-400">核心引擎</span>
+                  <span className="text-gray-400">{t("settings.about.engine")}</span>
                   <span className="text-emerald-400 flex items-center gap-1 font-medium">
-                    <Check size={12} /> 已连接 (Tauri Core)
+                    <Check size={12} /> {t("settings.about.engine.connected")}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-xs border-b border-gray-800 pb-2">
-                  <span className="text-gray-400">运行平台</span>
+                  <span className="text-gray-400">{t("settings.about.platform")}</span>
                   <span className="text-gray-300 font-medium">{platformStr}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-400">最新状态</span>
+                  <span className="text-gray-400">{t("settings.about.status")}</span>
                   {updaterStatus === 'checking' && (
                     <span className="text-blue-400 flex items-center gap-1 font-medium">
-                      <RefreshCw size={11} className="animate-spin" /> 正在检查更新...
+                      <RefreshCw size={11} className="animate-spin" /> {t("settings.about.checking")}
                     </span>
                   )}
                   {updaterStatus === 'upToDate' && (
@@ -783,26 +819,26 @@ export default function SettingsView({
                       onClick={() => checkForUpdates()}
                       className="text-emerald-400 hover:text-emerald-300 cursor-pointer flex items-center gap-1 font-medium transition-colors"
                     >
-                      已是最新版本 <Check size={10} />
+                      {t("settings.about.upToDate")} <Check size={10} />
                     </span>
                   )}
                   {updaterStatus === 'available' && (
                     <span className="text-amber-400 flex items-center gap-1 font-medium">
-                      发现新版本 v{updateInfo?.version}
+                      {t("settings.about.updateAvailable")} v{updateInfo?.version}
                     </span>
                   )}
                   {updaterStatus === 'downloading' && (
                     <span className="text-blue-400 font-medium flex items-center gap-1">
-                      <Download size={10} className="animate-pulse" /> 正在下载更新...
+                      <Download size={10} className="animate-pulse" /> {t("settings.about.downloading")}
                     </span>
                   )}
                   {updaterStatus === 'error' && (
                     <span
                       onClick={() => checkForUpdates()}
                       className="text-red-400 hover:text-red-300 cursor-pointer flex items-center gap-1 font-medium transition-colors"
-                      title={updaterError || "未知错误"}
+                      title={updaterError || t("settings.about.unknown_error")}
                     >
-                      检查失败，点击重试 <RefreshCw size={10} />
+                      {t("settings.about.checkFailed")} <RefreshCw size={10} />
                     </span>
                   )}
                   {updaterStatus === 'idle' && (
@@ -810,7 +846,7 @@ export default function SettingsView({
                       onClick={() => checkForUpdates()}
                       className="text-blue-400 hover:text-blue-300 cursor-pointer flex items-center gap-1 font-medium transition-colors"
                     >
-                      检查更新 <RefreshCw size={10} />
+                      {t("settings.about.checkUpdate")} <RefreshCw size={10} />
                     </span>
                   )}
                 </div>
@@ -827,10 +863,10 @@ export default function SettingsView({
                     )}
                     <div className="space-y-1 flex-1">
                       <h4 className="text-xs font-bold text-gray-200">
-                        {updaterStatus === 'downloading' ? '正在下载更新...' : '版本更新可用于 XClearp'}
+                        {updaterStatus === 'downloading' ? t("settings.about.downloading") : t("settings.about.updateTitle")}
                       </h4>
                       <p className="text-[11px] text-gray-400 leading-normal">
-                        最新版本: v{updateInfo?.version}
+                        {t("settings.about.updateVersion")}: v{updateInfo?.version}
                       </p>
                       {updateInfo?.body && updaterStatus !== 'downloading' && (
                         <div className="text-[10px] text-gray-500 bg-black/10 rounded p-1.5 max-h-20 overflow-y-auto mt-1 border border-gray-800/40">
@@ -843,11 +879,11 @@ export default function SettingsView({
                   {updaterStatus === 'downloading' ? (
                     <div className="space-y-1.5 pt-1">
                       <div className="flex justify-between text-[10px] text-gray-400">
-                        <span>正在下载并安装...</span>
+                        <span>{t("settings.about.downloadProgress")}</span>
                         <span>
                           {downloadProgress.total
                             ? `${Math.round((downloadProgress.downloaded / downloadProgress.total) * 100)}%`
-                            : '计算中...'}
+                            : t("settings.about.calculating")}
                         </span>
                       </div>
                       <div className="w-full bg-gray-800/50 rounded-full h-1.5 overflow-hidden">
@@ -868,7 +904,7 @@ export default function SettingsView({
                       onClick={installUpdate}
                       className="w-full py-2 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-lg text-xs font-bold transition-all duration-200 shadow-md shadow-amber-500/10 flex items-center justify-center gap-1.5 active:scale-[0.98]"
                     >
-                      <Download size={13} /> 立即下载并重启更新
+                      <Download size={13} /> {t("settings.about.updateButton")}
                     </button>
                   )}
                 </div>
@@ -876,7 +912,7 @@ export default function SettingsView({
 
               {/* Footer text */}
               <div className="text-[10px] text-gray-600 text-center mt-4">
-                <p>© 2026 XClearp Authors. Released under the MIT License.</p>
+                <p>{t("settings.about.copyright")}</p>
               </div>
             </div>
           )}
@@ -889,7 +925,7 @@ export default function SettingsView({
           <div className="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl w-full max-w-md m-4 overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-850 bg-gray-950/20">
-              <h3 className="text-sm font-bold text-gray-100">新建清理规则分组</h3>
+              <h3 className="text-sm font-bold text-gray-100">{t("settings.group.modal.title")}</h3>
               <button
                 onClick={() => setShowNewGroupModal(false)}
                 className="text-gray-500 hover:text-gray-300 transition-colors p-1"
@@ -901,32 +937,37 @@ export default function SettingsView({
             {/* Body */}
             <div className="px-6 py-4 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1">分组名称</label>
+                <label className="block text-xs font-semibold text-gray-400 mb-1">{t("settings.group.name")}</label>
                 <input
                   type="text"
                   value={newGroupName}
                   onChange={(e) => setNewGroupName(e.target.value)}
                   className="w-full px-3 py-2 bg-gray-950 border border-gray-800 rounded-lg text-sm text-white placeholder-gray-650 focus:outline-none focus:border-blue-500 transition-colors"
-                  placeholder="例如：微信垃圾清理"
+                  placeholder={t("settings.group.name.placeholder")}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1">分组描述</label>
+                <label className="block text-xs font-semibold text-gray-400 mb-1">{t("settings.group.description")}</label>
                 <input
                   type="text"
                   value={newGroupDesc}
                   onChange={(e) => setNewGroupDesc(e.target.value)}
                   className="w-full px-3 py-2 bg-gray-950 border border-gray-800 rounded-lg text-sm text-white placeholder-gray-655 focus:outline-none focus:border-blue-500 transition-colors"
-                  placeholder="描述此分组清理的对象与范围..."
+                  placeholder={t("settings.group.description.placeholder")}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1.5">选择分组图标</label>
+                <label className="block text-xs font-semibold text-gray-400 mb-1.5">{t("settings.group.icon")}</label>
                 <div className="grid grid-cols-3 gap-2">
                   {AVAILABLE_ICONS.map((ico) => {
                     const isSelected = newGroupIcon === ico.name;
+                    const iconKeyMap: Record<string, string> = {
+                      "folder": "folder", "globe": "globe", "hard-drive": "drive",
+                      "code": "code", "trash-2": "trash", "alert-triangle": "warning",
+                      "database": "database", "cpu": "cpu", "settings": "settings",
+                    };
                     return (
                       <button
                         key={ico.name}
@@ -938,7 +979,7 @@ export default function SettingsView({
                         }`}
                       >
                         {renderIcon(ico.name, "w-4 h-4")}
-                        <span>{ico.label}</span>
+                        <span>{t(`settings.group.icon.${iconKeyMap[ico.name] || ico.name}`)}</span>
                       </button>
                     );
                   })}
@@ -952,14 +993,14 @@ export default function SettingsView({
                 onClick={() => setShowNewGroupModal(false)}
                 className="px-4 py-2 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-gray-850 transition-colors"
               >
-                取消
+                {t("modal.cancel")}
               </button>
               <button
                 onClick={handleCreateGroup}
                 disabled={!newGroupName.trim()}
                 className="px-4 py-2 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                创建分组
+                {t("settings.group.create")}
               </button>
             </div>
           </div>
@@ -976,16 +1017,16 @@ export default function SettingsView({
             try {
               if (editingRule) {
                 await onEditRule(rule);
-                toast.success(`成功更新清理规则 "${rule.name}"！`);
+                toast.success(t("settings.toast.rule_updated").replace("{name}", rule.name));
               } else {
                 await onAddRule(rule);
-                toast.success(`成功添加清理规则 "${rule.name}"！`);
+                toast.success(t("settings.toast.rule_added").replace("{name}", rule.name));
               }
               setEditingRule(null);
               setShowNewRule(null);
             } catch (e) {
               console.error("Failed to save rule:", e);
-              toast.error(`保存清理规则失败: ${e}`);
+              toast.error(t("settings.toast.rule_save_failed").replace("{error}", String(e)));
             }
           }}
           onCancel={() => {
@@ -1000,21 +1041,21 @@ export default function SettingsView({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm p-5 rounded-xl bg-gray-900 border border-gray-800 shadow-2xl animate-fade-in">
             <h3 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
-              <ShieldAlert className="text-red-500" size={18} /> 确认删除规则
+              <ShieldAlert className="text-red-500" size={18} /> {t("delete.rule.title")}
             </h3>
-            <p className="text-sm text-gray-400 mb-1">确定要删除清理规则吗？</p>
+            <p className="text-sm text-gray-400 mb-1">{t("delete.rule.message")}</p>
             <p className="text-sm text-gray-200 bg-gray-950/60 rounded px-3 py-2 mb-3 break-all font-mono text-xs">
               {deleteTargetRule.name}
             </p>
             <p className="text-[11px] text-gray-500 mb-4 leading-relaxed">
-              此操作将从您的自定义清理规则中永久移除此规则，并且不可撤销。
+              {t("delete.rule.warning")}
             </p>
             <div className="flex justify-end gap-2 text-xs">
               <button
                 onClick={() => setDeleteTargetRule(null)}
                 className="px-4 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
               >
-                取消
+                {t("modal.cancel")}
               </button>
               <button
                 onClick={async () => {
@@ -1023,14 +1064,14 @@ export default function SettingsView({
                       await onDeleteRule(deleteTargetRule.id);
                     }
                   } catch (e) {
-                    alert(`删除规则失败: ${e}`);
+                    alert(t("settings.alert.delete_rule_failed").replace("{error}", String(e)));
                   } finally {
                     setDeleteTargetRule(null);
                   }
                 }}
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
               >
-                确认删除
+                {t("modal.delete")}
               </button>
             </div>
           </div>
@@ -1042,21 +1083,21 @@ export default function SettingsView({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm p-5 rounded-xl bg-gray-900 border border-gray-800 shadow-2xl animate-fade-in">
             <h3 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
-              <ShieldAlert className="text-red-500" size={18} /> 确认删除规则组
+              <ShieldAlert className="text-red-500" size={18} /> {t("delete.group.title")}
             </h3>
-            <p className="text-sm text-gray-400 mb-1">确定要删除清理规则组吗？</p>
+            <p className="text-sm text-gray-400 mb-1">{t("delete.group.message")}</p>
             <p className="text-sm text-gray-200 bg-gray-950/60 rounded px-3 py-2 mb-3 break-all font-mono text-xs">
               {deleteTargetGroup.name}
             </p>
             <p className="text-[11px] text-gray-500 mb-4 leading-relaxed">
-              该组下的所有自定义规则也将被物理删除，此操作不可撤销。
+              {t("delete.group.warning")}
             </p>
             <div className="flex justify-end gap-2 text-xs">
               <button
                 onClick={() => setDeleteTargetGroup(null)}
                 className="px-4 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
               >
-                取消
+                {t("modal.cancel")}
               </button>
               <button
                 onClick={async () => {
@@ -1066,14 +1107,14 @@ export default function SettingsView({
                       setExpandedGroup(null);
                     }
                   } catch (e) {
-                    alert(`删除规则组失败: ${e}`);
+                    alert(t("settings.alert.delete_group_failed").replace("{error}", String(e)));
                   } finally {
                     setDeleteTargetGroup(null);
                   }
                 }}
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
               >
-                确认删除
+                {t("modal.delete")}
               </button>
             </div>
           </div>

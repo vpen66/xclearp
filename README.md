@@ -3,6 +3,8 @@
 [![CI](https://github.com/vpen66/xclearp/actions/workflows/ci.yml/badge.svg)](https://github.com/vpen66/xclearp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+中文 | [English](README_EN.md)
+
 XClearp 是一款**企业级跨平台系统清理与磁盘分析工具**，基于 **Tauri 2.0** 与 **Rust** 构建，前端使用 **React + TypeScript + Vite + TailwindCSS**。
 
 支持 Windows (x86_64), macOS (Intel/Apple Silicon), 以及 Linux (x86_64) 三大主流平台。

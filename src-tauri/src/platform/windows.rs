@@ -70,7 +70,7 @@ impl WindowsProvider {
 fn read_registry_apps() -> Vec<InstalledApp> {
     use std::collections::HashMap;
 
-    let registry_paths: Vec<(winreg::enums::HKEY, &str)> = vec![
+    let registry_paths: Vec<(winreg::HKEY, &str)> = vec![
         (
             HKEY_LOCAL_MACHINE,
             r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
@@ -301,7 +301,7 @@ fn scan_registry_residuals(app: &InstalledApp) -> Vec<crate::core::uninstall::Ap
     let keywords = WindowsProvider::search_keywords(&app.name, &app.publisher);
     let mut entries = Vec::new();
 
-    let search_roots: Vec<(winreg::enums::HKEY, &str, &str)> = vec![
+    let search_roots: Vec<(winreg::HKEY, &str, &str)> = vec![
         (HKEY_CURRENT_USER, "SOFTWARE", "HKCU\\SOFTWARE"),
         (HKEY_LOCAL_MACHINE, "SOFTWARE", "HKLM\\SOFTWARE"),
     ];
@@ -356,8 +356,8 @@ fn estimate_registry_key_size_limited(parent: &RegKey, subkey_name: &str, max_de
     }
     let mut total: u64 = 0;
     if let Ok(key) = parent.open_subkey(subkey_name) {
-        if let Ok(count) = key.get_value_count() {
-            total += count as u64 * 64;
+        if let Ok(info) = key.query_info() {
+            total += info.values_count as u64 * 64;
         }
         let mut sub_count: u32 = 0;
         for sub_name in key.enum_keys().flatten() {
@@ -642,7 +642,7 @@ impl PlatformProvider for WindowsProvider {
         #[cfg(target_os = "windows")]
         {
             let start = Instant::now();
-            let mut category_paths = build_windows_residual_paths(app);
+            let category_paths = build_windows_residual_paths(app);
 
             // Add registry residuals as a special group
             let registry_entries = scan_registry_residuals(app);

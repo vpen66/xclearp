@@ -5,9 +5,11 @@ import { getWhitelist, updateWhitelist, type Whitelist } from "../lib/ipc";
 import { Trash2, Plus, AlertCircle, Loader2, ToggleLeft, ToggleRight, Download, Upload, HelpCircle, Eye, EyeOff } from "lucide-react";
 import Tooltip from "./Tooltip";
 import { useToast } from "./Toast";
+import { useI18n } from "../lib/i18n";
 
 export default function WhitelistManager() {
   const toast = useToast();
+  const { t } = useI18n();
   const [whitelist, setWhitelist] = useState<Whitelist | null>(null);
   const [newPath, setNewPath] = useState("");
   const [loading, setLoading] = useState(true);
@@ -34,12 +36,12 @@ export default function WhitelistManager() {
           };
           await updateWhitelist(wl);
           setWhitelist(wl);
-          toast.success("导入白名单成功！");
+          toast.success(t("whitelist.toast.import_success"));
         } else {
-          toast.error("非法的白名单 JSON 格式，期望是一个对象");
+          toast.error(t("whitelist.toast.import_error_format"));
         }
       } catch (err) {
-        toast.error("导入失败: " + err);
+        toast.error(t("toast.import.error") + ": " + err);
       }
     };
     reader.readAsText(file);
@@ -80,7 +82,7 @@ export default function WhitelistManager() {
 
     if (whitelist.global_excludes.includes(trimmed)) {
       setNewPath("");
-      toast.info("该路径已存在于全局排除白名单中。");
+      toast.info(t("whitelist.toast.exists"));
       return;
     }
 
@@ -94,10 +96,10 @@ export default function WhitelistManager() {
       await updateWhitelist(updated);
       setWhitelist(updated);
       setNewPath("");
-      toast.success(`已将 "${trimmed}" 成功添加到全局排除白名单中！`);
+      toast.success(t("whitelist.toast.add_success").replace("{name}", trimmed));
     } catch (e) {
-      setError("添加失败，无法更新白名单");
-      toast.error("添加白名单失败，请重试");
+      setError(t("whitelist.error.add"));
+      toast.error(t("toast.rule.error"));
     }
   };
 
@@ -114,7 +116,7 @@ export default function WhitelistManager() {
       await updateWhitelist(updated);
       setWhitelist(updated);
     } catch (e) {
-      setError("删除失败，无法更新白名单");
+      setError(t("whitelist.error.delete"));
     }
   };
 
@@ -132,7 +134,7 @@ export default function WhitelistManager() {
       await updateWhitelist(updated);
       setWhitelist(updated);
     } catch (e) {
-      setError("切换失败，无法更新白名单");
+      setError(t("whitelist.error.toggle"));
     }
   };
 
@@ -151,7 +153,7 @@ export default function WhitelistManager() {
       await updateWhitelist(updated);
       setWhitelist(updated);
     } catch (e) {
-      setError("切换小眼睛状态失败，无法更新白名单");
+      setError(t("whitelist.error.eye"));
     }
   };
 
@@ -163,7 +165,7 @@ export default function WhitelistManager() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-2">
         <Loader2 className="animate-spin text-blue-500 w-8 h-8" />
-        <p className="text-sm text-gray-500">正在加载白名单配置...</p>
+        <p className="text-sm text-gray-500">{t("whitelist.state.loading")}</p>
       </div>
     );
   }
@@ -174,8 +176,8 @@ export default function WhitelistManager() {
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-1.5">
-            <h3 className="text-base font-semibold text-white">全局白名单</h3>
-            <Tooltip content="显示/隐藏匹配规则提示">
+            <h3 className="text-base font-semibold text-white">{t("whitelist.title")}</h3>
+            <Tooltip content={t("whitelist.tooltip.match_rule")}>
               <button
                 onClick={() => setShowTip(!showTip)}
                 className={`text-gray-400 hover:text-blue-400 transition-colors p-0.5 rounded hover:bg-gray-800/60 ${showTip ? 'text-blue-400' : ''}`}
@@ -185,7 +187,7 @@ export default function WhitelistManager() {
             </Tooltip>
           </div>
           <p className="text-xs text-gray-500 mt-0.5 pr-4">
-            配置在此处的路径和通配符规则将永远不会被系统扫描或清理，有效保护您的关键项目与个人隐私数据。
+            {t("whitelist.desc")}
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -196,20 +198,20 @@ export default function WhitelistManager() {
             className="hidden"
             onChange={handleImportWhitelist}
           />
-          <Tooltip content="从 JSON 文件导入白名单排除项">
+          <Tooltip content={t("whitelist.import")}>
             <button
               onClick={() => document.getElementById("import-whitelist-input")?.click()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 hover:border-gray-600 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-850 hover:bg-gray-800 text-gray-300 border border-gray-700 hover:border-gray-600 transition-colors"
             >
-              <Upload size={14} /> 导入白名单
+              <Upload size={14} /> {t("whitelist.import")}
             </button>
           </Tooltip>
-          <Tooltip content="导出当前白名单排除项为 JSON 文件">
+          <Tooltip content={t("whitelist.export")}>
             <button
               onClick={handleExportWhitelist}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 hover:border-gray-600 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-850 hover:bg-gray-800 text-gray-300 border border-gray-700 hover:border-gray-600 transition-colors"
             >
-              <Download size={14} /> 导出白名单
+              <Download size={14} /> {t("whitelist.export")}
             </button>
           </Tooltip>
         </div>
@@ -220,11 +222,8 @@ export default function WhitelistManager() {
         <div className="flex gap-3 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs leading-relaxed transition-all duration-200">
           <AlertCircle className="w-5 h-5 shrink-0" />
           <div>
-            <span className="font-bold">匹配规则提示：</span>
-            白名单采用标准 Glob 通配符模式。例如：
-            <code className="mx-1 px-1 bg-blue-500/20 rounded font-mono">**/.git/**</code> 会自动忽略任何子目录中的 Git 仓库信息；
-            <code className="mx-1 px-1 bg-blue-500/20 rounded font-mono">**/node_modules/**</code> 会保护依赖缓存；
-            <code className="mx-1 px-1 bg-blue-500/20 rounded font-mono">*.key</code> 会过滤所有密钥后缀的文件。
+            <span className="font-bold">{t("whitelist.tip.title")}</span>
+            {t("whitelist.tip.desc")}
           </div>
         </div>
       )}
@@ -236,8 +235,8 @@ export default function WhitelistManager() {
       )}
 
       {/* Exclude Inputs & List */}
-      <div className="bg-gray-800/20 border border-gray-800/80 rounded-xl p-4 space-y-3">
-        <h4 className="text-xs font-semibold text-gray-300 tracking-wide uppercase">排除路径列表</h4>
+      <div className="bg-gray-850/20 border border-gray-800/80 rounded-xl p-4 space-y-3">
+        <h4 className="text-xs font-semibold text-gray-300 tracking-wide uppercase">{t("whitelist.list_title")}</h4>
 
         {/* Input */}
         <div className="flex gap-2">
@@ -247,21 +246,21 @@ export default function WhitelistManager() {
             onChange={(e) => setNewPath(e.target.value)}
             onKeyDown={handleKeyDown}
             className="flex-1 px-3 py-2 bg-gray-950 border border-gray-850 rounded-xl text-sm text-white placeholder-gray-650 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
-            placeholder="输入要全局排除的路径或文件名模式，例如 **/my_documents/**"
+            placeholder={t("whitelist.placeholder")}
           />
           <button
             onClick={handleAddPath}
             disabled={!newPath.trim()}
             className="flex items-center gap-1 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
-            <Plus size={14} /> 添加路径
+            <Plus size={14} /> {t("whitelist.action.add")}
           </button>
         </div>
 
         {/* List of paths */}
         {!whitelist || whitelist.global_excludes.length === 0 ? (
           <div className="py-12 text-center text-gray-600 text-sm">
-            暂无全局白名单路径，点击上方“添加”新增规则
+            {t("whitelist.empty")}
           </div>
         ) : (
           <div className="space-y-2 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
@@ -291,7 +290,7 @@ export default function WhitelistManager() {
                     {path}
                   </span>
                 </Tooltip>
-                <Tooltip content={!enabled ? "规则已禁用" : eyeOpen ? "白名单标记：磁盘分析扫描时显示并标记" : "完全排除：磁盘分析不扫描该路径"}>
+                <Tooltip content={!enabled ? t("whitelist.rule_disabled") : eyeOpen ? t("whitelist.tooltip.disk_marker") : t("whitelist.tooltip.disk_exclude")}>
                   <button
                     onClick={() => handleToggleEye(path)}
                     disabled={!enabled}
@@ -306,7 +305,7 @@ export default function WhitelistManager() {
                     {eyeOpen ? <Eye size={18} /> : <EyeOff size={18} />}
                   </button>
                 </Tooltip>
-                <Tooltip content={enabled ? "点击禁用该规则" : "点击启用该规则"}>
+                <Tooltip content={enabled ? t("whitelist.tooltip.toggle_disable") : t("whitelist.tooltip.toggle_enable")}>
                   <button
                     onClick={() => handleToggleEnabled(path)}
                     className={`p-1.5 rounded-lg transition-all shrink-0 ${
@@ -318,7 +317,7 @@ export default function WhitelistManager() {
                     {enabled ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
                   </button>
                 </Tooltip>
-                <Tooltip content="删除规则">
+                <Tooltip content={t("whitelist.tooltip.delete")}>
                   <button
                     onClick={() => handleRemovePath(path)}
                     className="text-gray-500 hover:text-red-400 hover:bg-gray-800/40 p-1.5 rounded-lg transition-all shrink-0"

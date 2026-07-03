@@ -7,6 +7,7 @@ import {
   IconSettings,
   IconPackageX,
 } from "./Icons";
+import { useI18n } from "../lib/i18n";
 
 interface SidebarProps {
   currentPage: Page;
@@ -14,15 +15,16 @@ interface SidebarProps {
   width: number;
 }
 
-const navItems: { page: Page; label: string; icon: React.ReactNode }[] = [
-  { page: "scan", label: "扫描清理", icon: <IconSearch /> },
-  { page: "disk", label: "磁盘分析", icon: <IconHardDrive /> },
-  { page: "uninstall", label: "应用卸载", icon: <IconPackageX /> },
-  { page: "settings", label: "设置", icon: <IconSettings /> },
-];
-
 export default function Sidebar({ currentPage, onNavigate, width }: SidebarProps) {
+  const { t } = useI18n();
   const isCollapsed = width < 110;
+
+  const navItems: { page: Page; labelKey: string; icon: React.ReactNode }[] = [
+    { page: "scan", labelKey: "nav.scan", icon: <IconSearch /> },
+    { page: "disk", labelKey: "nav.disk", icon: <IconHardDrive /> },
+    { page: "uninstall", labelKey: "nav.uninstall", icon: <IconPackageX /> },
+    { page: "settings", labelKey: "nav.settings", icon: <IconSettings /> },
+  ];
 
   return (
     <aside
@@ -50,20 +52,21 @@ export default function Sidebar({ currentPage, onNavigate, width }: SidebarProps
               <path d="M5 15 Q5 17 7 17 Q5 17 5 19 Q5 17 3 17 Q5 17 5 15 Z" fill="#E0F7FA" />
             </svg>
           </span>
-          {!isCollapsed && <span className="truncate">XClearp</span>}
+          {!isCollapsed && <span className="truncate">{t("app.title")}</span>}
         </h1>
-        {!isCollapsed && <p className="text-xs text-gray-500 mt-1 truncate">跨平台系统清理工具</p>}
+        {!isCollapsed && <p className="text-xs text-gray-500 mt-1 truncate">{t("app.subtitle")}</p>}
       </div>
 
       {/* Navigation */}
       <nav className={`flex-1 py-4 space-y-1 ${isCollapsed ? "px-1.5" : "px-3"}`}>
         {navItems.map((item) => {
           const active = currentPage === item.page;
+          const label = t(item.labelKey);
           return (
             <button
               key={item.page}
               onClick={() => onNavigate(item.page)}
-              title={isCollapsed ? item.label : undefined}
+              title={isCollapsed ? label : undefined}
               className={`w-full flex items-center rounded-lg text-sm font-medium transition-all duration-150 ${
                 isCollapsed
                   ? "justify-center px-0 py-2.5"
@@ -77,7 +80,7 @@ export default function Sidebar({ currentPage, onNavigate, width }: SidebarProps
               <span className={`text-lg text-gray-400 ${isCollapsed ? "flex items-center justify-center w-6 h-6 shrink-0" : "shrink-0"}`}>
                 {item.icon}
               </span>
-              {!isCollapsed && <span className="truncate">{item.label}</span>}
+              {!isCollapsed && <span className="truncate">{label}</span>}
             </button>
           );
         })}

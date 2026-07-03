@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import type { CleanRule, RiskLevel, RuleGroup } from "../types/index";
 import { X, Plus, Trash2, ChevronDown } from "lucide-react";
 import { getPlatform } from "../lib/ipc";
+import { useI18n } from "../lib/i18n";
 
 interface RuleEditorProps {
   rule: CleanRule | null; // null = create new
@@ -48,6 +49,7 @@ export default function RuleEditor({
   onSave,
   onCancel,
 }: RuleEditorProps) {
+  const { t } = useI18n();
   const [name, setName] = useState(rule?.name ?? "");
   const [description, setDescription] = useState(rule?.description ?? "");
   const [group, setGroup] = useState(rule?.group ?? defaultGroup ?? groups[0]?.id ?? "");
@@ -125,7 +127,7 @@ export default function RuleEditor({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-950/20 shrink-0">
           <h3 className="text-sm font-bold text-gray-50 tracking-wide">
-            {rule ? "编辑清理规则" : "添加清理规则"}
+            {rule ? t("settings.rules.editRule.title") : t("settings.rules.addRule.title")}
           </h3>
           <button
             onClick={onCancel}
@@ -140,31 +142,31 @@ export default function RuleEditor({
           
           {/* Rule Name */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">规则名称</label>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">{t("settings.rules.rule.name")}</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
-              placeholder="例如：Chrome 缓存清理"
+              placeholder={t("settings.rules.rule.name.placeholder")}
             />
           </div>
 
           {/* Description */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">描述</label>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">{t("settings.rules.rule.desc")}</label>
             <input
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
-              placeholder="此规则清理的文件范围和作用..."
+              placeholder={t("settings.rules.rule.desc.placeholder")}
             />
           </div>
 
           {/* Group Dropdown Selector */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">所属分组</label>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">{t("settings.rules.rule.group")}</label>
             <div className="relative">
               <select
                 value={group}
@@ -185,7 +187,7 @@ export default function RuleEditor({
 
           {/* Platforms Selector */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">适用平台</label>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">{t("settings.rules.rule.platforms")}</label>
             <div className="flex gap-2">
               {PLATFORMS.map((p) => {
                 const isSelected = platforms.includes(p);
@@ -209,7 +211,7 @@ export default function RuleEditor({
 
           {/* Paths Input List */}
           <div className="space-y-2">
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">路径列表</label>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">{t("settings.rules.rule.paths")}</label>
             <div className="space-y-2">
               {paths.map((p, i) => (
                 <div key={i} className="flex gap-2 items-center">
@@ -218,13 +220,13 @@ export default function RuleEditor({
                     value={p}
                     onChange={(e) => updateListItem(paths, setPaths, i, e.target.value)}
                     className="flex-1 px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 placeholder-gray-650 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
-                    placeholder="如：~/Library/Caches/Chrome"
+                    placeholder={t("settings.rules.rule.paths.placeholder")}
                   />
                   {paths.length > 1 && (
                     <button
                       onClick={() => removeListItem(paths, setPaths, i)}
                       className="text-gray-500 hover:text-red-400 hover:bg-gray-800/50 p-2 rounded-xl transition-colors shrink-0"
-                      title="删除路径"
+                      title={t("rule_editor.tooltip.delete_path")}
                     >
                       <Trash2 size={15} />
                     </button>
@@ -236,13 +238,13 @@ export default function RuleEditor({
               onClick={() => addListItem(paths, setPaths)}
               className="inline-flex items-center gap-1 text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors mt-1"
             >
-              <Plus size={14} /> 添加新路径
+              <Plus size={14} /> {t("settings.rules.rule.paths.add")}
             </button>
           </div>
 
           {/* File patterns list */}
           <div className="space-y-2">
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">文件匹配模式</label>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">{t("settings.rules.rule.patterns")}</label>
             <div className="space-y-2">
               {filePatterns.map((p, i) => (
                 <div key={i} className="flex gap-2 items-center">
@@ -251,13 +253,13 @@ export default function RuleEditor({
                     value={p}
                     onChange={(e) => updateListItem(filePatterns, setFilePatterns, i, e.target.value)}
                     className="flex-1 px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 placeholder-gray-650 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
-                    placeholder="如：*.tmp"
+                    placeholder={t("settings.rules.rule.patterns.placeholder")}
                   />
                   {filePatterns.length > 1 && (
                     <button
                       onClick={() => removeListItem(filePatterns, setFilePatterns, i)}
                       className="text-gray-500 hover:text-red-400 hover:bg-gray-800/50 p-2 rounded-xl transition-colors shrink-0"
-                      title="删除匹配模式"
+                      title={t("rule_editor.tooltip.delete_pattern")}
                     >
                       <Trash2 size={15} />
                     </button>
@@ -269,13 +271,13 @@ export default function RuleEditor({
               onClick={() => addListItem(filePatterns, setFilePatterns)}
               className="inline-flex items-center gap-1 text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors mt-1"
             >
-              <Plus size={14} /> 添加匹配模式
+              <Plus size={14} /> {t("settings.rules.rule.patterns.add")}
             </button>
           </div>
 
           {/* Exclude patterns (Whitelist) */}
           <div className="space-y-2">
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">排除模式（白名单）</label>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">{t("settings.rules.rule.excludes")}</label>
             <div className="space-y-2">
               {excludePatterns.map((p, i) => (
                 <div key={i} className="flex gap-2 items-center">
@@ -284,12 +286,12 @@ export default function RuleEditor({
                     value={p}
                     onChange={(e) => updateListItem(excludePatterns, setExcludePatterns, i, e.target.value)}
                     className="flex-1 px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 placeholder-gray-650 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
-                    placeholder="如：important_*"
+                    placeholder={t("settings.rules.rule.excludes.placeholder")}
                   />
                   <button
                     onClick={() => removeListItem(excludePatterns, setExcludePatterns, i)}
                     className="text-gray-500 hover:text-red-400 hover:bg-gray-800/50 p-2 rounded-xl transition-colors shrink-0"
-                    title="删除排除"
+                    title={t("rule_editor.tooltip.delete_exclude")}
                   >
                     <Trash2 size={15} />
                   </button>
@@ -300,25 +302,25 @@ export default function RuleEditor({
               onClick={() => addListItem(excludePatterns, setExcludePatterns)}
               className="inline-flex items-center gap-1 text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors mt-1"
             >
-              <Plus size={14} /> 添加排除模式
+              <Plus size={14} /> {t("settings.rules.rule.excludes.add")}
             </button>
           </div>
 
           {/* Min Age */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">最小文件年龄（小时）</label>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">{t("settings.rules.rule.minAge")}</label>
             <input
               type="number"
               value={minAgeHours}
               onChange={(e) => setMinAgeHours(e.target.value)}
               className="w-full px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
-              placeholder="留空表示不限，只清理此年龄以上的文件"
+              placeholder={t("settings.rules.rule.minAge.placeholder")}
             />
           </div>
 
           {/* Risk Level Selector */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">风险等级</label>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">{t("settings.rules.rule.risk")}</label>
             <div className="flex gap-2">
               {RISK_LEVELS.map((level) => {
                 const isSelected = riskLevel === level;
@@ -340,7 +342,7 @@ export default function RuleEditor({
                         : "bg-gray-950 border-gray-800 text-gray-500 hover:border-gray-700 hover:text-gray-400"
                     }`}
                   >
-                    {level === "Safe" ? "安全" : level === "Medium" ? "中风险" : "高风险"}
+                    {level === "Safe" ? t("settings.rules.rule.risk.low") : level === "Medium" ? t("settings.rules.rule.risk.medium") : t("settings.rules.rule.risk.high")}
                   </button>
                 );
               })}
@@ -354,14 +356,14 @@ export default function RuleEditor({
             onClick={onCancel}
             className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-white hover:bg-gray-850 transition-colors"
           >
-            取消
+            {t("modal.cancel")}
           </button>
           <button
             onClick={handleSave}
             disabled={!name.trim()}
             className="px-5 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-650/10"
           >
-            保存规则
+            {t("settings.rules.rule.save")}
           </button>
         </div>
       </div>

@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import type { FileDiscovery, ScanProgress, ScanSummary, ScanTarget, RuleGroup } from "../types/index";
 import { formatFileSize, formatDuration } from "../lib/ndjson";
+import { useI18n } from "../lib/i18n";
 import {
   Search,
   Trash2,
@@ -131,6 +132,7 @@ export default function ScanView({
   onStartClean,
   error,
 }: ScanViewProps) {
+  const { t } = useI18n();
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -467,7 +469,7 @@ export default function ScanView({
                   className="w-full flex items-center justify-center py-2 bg-gray-900/10 hover:bg-gray-900/20 text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors border-t border-gray-850/10"
                   style={{ paddingLeft: `${(depth + 1) * 16 + 16}px` }}
                 >
-                  还有 {node.children.length - 100} 个项未显示... (点击展开)
+                  {t("scan.folder.more_items").replace("{count}", String(node.children.length - 100))}
                 </button>
               )}
             </div>
@@ -488,7 +490,9 @@ export default function ScanView({
   };
 
   const handleCleanAll = () => {
-    const confirmMessage = `确定要清理扫描出来的所有 ${discoveredFiles.length} 项垃圾文件（约 ${formatFileSize(scanSummary?.totalSize || 0)}）吗？`;
+    const confirmMessage = t("scan.confirm.clean_all")
+      .replace("{count}", String(discoveredFiles.length))
+      .replace("{size}", formatFileSize(scanSummary?.totalSize || 0));
     if (confirm(confirmMessage)) {
       const targets: ScanTarget[] = discoveredFiles.map((f) => ({
         path: f.path,
@@ -549,9 +553,9 @@ export default function ScanView({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-50 tracking-tight">扫描清理</h2>
+          <h2 className="text-2xl font-bold text-gray-50 tracking-tight">{t("nav.scan")}</h2>
           <p className="text-sm text-gray-400 mt-1">
-            快速扫描并安全清理系统缓存、残留垃圾文件与无效临时文件。
+            {t("scan.subtitle")}
           </p>
         </div>
         {!isScanning ? (
@@ -559,14 +563,14 @@ export default function ScanView({
             onClick={handleScan}
             className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white transition-all flex items-center gap-2 shadow-lg shadow-blue-500/10 active:scale-98"
           >
-            <Search size={16} /> 开始扫描
+            <Search size={16} /> {t("scan.action.start")}
           </button>
         ) : (
           <button
             onClick={onCancelScan}
             className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-red-600 hover:bg-red-500 text-white transition-all active:scale-98"
           >
-            取消扫描
+            {t("scan.action.cancel")}
           </button>
         )}
       </div>
@@ -585,7 +589,7 @@ export default function ScanView({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {/* Cleanable Size */}
             <div className="p-4 rounded-xl bg-gray-900/60 border border-gray-800 space-y-1 backdrop-blur-md hover:border-gray-700/60 transition-colors">
-              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">可释放空间</span>
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">{t("scan.card.releasable")}</span>
               <p className="text-xl font-extrabold text-blue-400 font-mono">
                 {isScanning
                   ? formatFileSize(scanProgress?.totalSize ?? 0)
@@ -594,27 +598,27 @@ export default function ScanView({
             </div>
             {/* Total Files */}
             <div className="p-4 rounded-xl bg-gray-900/60 border border-gray-800 space-y-1 backdrop-blur-md hover:border-gray-700/60 transition-colors">
-              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">发现垃圾文件</span>
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">{t("scan.card.discovered")}</span>
               <p className="text-xl font-extrabold text-gray-50 font-mono">
                 {isScanning
-                  ? `${scanProgress?.scannedFiles ?? 0} 个`
-                  : `${scanSummary?.totalFiles ?? 0} 个`}
+                  ? t("scan.status.files_count").replace("{count}", String(scanProgress?.scannedFiles ?? 0))
+                  : t("scan.status.files_count").replace("{count}", String(scanSummary?.totalFiles ?? 0))}
               </p>
             </div>
             {/* Whitelist Exclusions */}
             <div className="p-4 rounded-xl bg-gray-900/60 border border-gray-800 space-y-1 backdrop-blur-md hover:border-gray-700/60 transition-colors">
               <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider flex items-center gap-1">
-                <ShieldCheck size={12} /> 白名单拦截
+                <ShieldCheck size={12} /> {t("scan.card.whitelist")}
               </span>
               <p className="text-sm font-bold text-emerald-400 font-mono leading-7">
                 {isScanning
-                  ? `0 个 (${formatFileSize(0)})`
-                  : `${scanSummary?.skippedFiles ?? 0} 个 (${formatFileSize(scanSummary?.skippedSize ?? 0)})`}
+                  ? `${t("scan.status.files_count").replace("{count}", "0")} (${formatFileSize(0)})`
+                  : `${t("scan.status.files_count").replace("{count}", String(scanSummary?.skippedFiles ?? 0))} (${formatFileSize(scanSummary?.skippedSize ?? 0)})`}
               </p>
             </div>
             {/* Scan efficiency */}
             <div className="p-4 rounded-xl bg-gray-900/60 border border-gray-800 space-y-1 backdrop-blur-md hover:border-gray-700/60 transition-colors">
-              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">耗时速率</span>
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">{t("scan.card.speed")}</span>
               <p className="text-sm font-semibold text-gray-350 leading-7 flex items-center gap-1 font-mono">
                 <Clock size={12} className="text-gray-500" />
                 {isScanning
@@ -640,7 +644,7 @@ export default function ScanView({
             {!isSelectMode ? (
               <>
                 <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                  系统清理清单
+                  {t("scan.list.title")}
                 </div>
                 <div className="flex items-center gap-3">
                   <button
@@ -651,14 +655,14 @@ export default function ScanView({
                     }}
                     className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold bg-gray-850 hover:bg-gray-800 text-gray-200 border border-gray-700 transition-all active:scale-98 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    选择
+                    {t("scan.action.select")}
                   </button>
                   <button
                     disabled={discoveredFiles.length === 0 || isScanning}
                     onClick={handleCleanAll}
                     className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white transition-all shadow-md shadow-red-500/10 active:scale-98 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    <Trash2 size={13} /> 一键清理
+                    <Trash2 size={13} /> {t("scan.action.cleanAll")}
                   </button>
                 </div>
               </>
@@ -679,11 +683,11 @@ export default function ScanView({
                       </svg>
                     )}
                   </span>
-                  全选
+                  {t("scan.action.selectAll")}
                 </button>
                 <div className="flex items-center gap-4">
                   <span className="text-xs text-gray-500 font-mono">
-                    已选 {selectedPaths.size}/{discoveredFiles.length} 项
+                    {t("scan.status.selected").replace("{count}", String(selectedPaths.size)).replace("{total}", String(discoveredFiles.length))}
                   </span>
                   <span className="text-xs font-bold text-gray-300 font-mono">{formatFileSize(selectedTotal)}</span>
                   <button
@@ -693,14 +697,14 @@ export default function ScanView({
                     }}
                     className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-850 hover:bg-gray-800 text-gray-400 hover:text-gray-300 transition-colors"
                   >
-                    取消选择
+                    {t("scan.action.deselect")}
                   </button>
                   <button
                     onClick={handleClean}
                     disabled={selectedPaths.size === 0 || isScanning}
                     className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-all shadow-md shadow-red-500/10 active:scale-98"
                   >
-                    <Trash2 size={13} /> 立即清理
+                    <Trash2 size={13} /> {t("scan.action.clean")}
                   </button>
                 </div>
               </>
@@ -777,7 +781,8 @@ export default function ScanView({
                           const selectedInGroup = files.filter((f) => selectedPaths.has(f.path)).length;
                           return (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-950/50 border border-gray-850/30 text-gray-400 font-mono font-medium shrink-0">
-                              {selectedInGroup > 0 ? `已选 ${selectedInGroup}/` : ""}{files.length} 项
+                              {selectedInGroup > 0 ? t("scan.group.selected_prefix").replace("{count}", String(selectedInGroup)) : ""}
+                              {t("scan.status.items_count").replace("{count}", String(files.length))}
                             </span>
                           );
                         })()}
@@ -870,7 +875,7 @@ export default function ScanView({
                                   {formatDisplayPath(folderPath)}
                                 </span>
                                 <span className="text-[10px] text-gray-500 font-mono mt-0.5">
-                                  包含 {folderFiles.length} 个文件
+                                  {t("scan.folder.fileCount").replace("{count}", String(folderFiles.length))}
                                 </span>
                               </div>
 
@@ -912,13 +917,13 @@ export default function ScanView({
         <button
           onClick={handleScan}
           className="w-16 h-16 rounded-2xl bg-gray-900 border border-gray-800 hover:border-blue-500/50 hover:bg-gray-850 flex items-center justify-center mb-4 text-gray-500 hover:text-blue-400 shadow-xl shadow-black/10 active:scale-95 transition-all duration-200 group"
-          title="点击开始扫描"
+          title={t("scan.action.start")}
         >
           <Zap size={24} className="text-blue-500 group-hover:scale-110 group-hover:text-blue-400 transition-all duration-300 animate-pulse" />
         </button>
-        <p className="text-sm font-semibold text-gray-300">系统就绪，等待扫描</p>
+        <p className="text-sm font-semibold text-gray-300">{t("scan.state.ready")}</p>
         <p className="text-xs text-gray-500 mt-1 max-w-xs leading-relaxed">
-          点击上方图标或“开始扫描”按钮来检索您系统中由规则组定义的可清理冗余文件。
+          {t("scan.state.ready.desc")}
         </p>
       </div>
     </div>

@@ -6,6 +6,7 @@ import { IconLoader, IconAlert, IconTrash, IconRefresh } from "./Icons";
 import { getIconDataUrls } from "../lib/ipc";
 import { Folder, FileText, ChevronDown, ChevronRight } from "lucide-react";
 import type { AppFileEntry } from "../types/uninstall";
+import { useI18n } from "../lib/i18n";
 
 function formatSize(bytes: number): string {
   if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(2)} GB`;
@@ -89,6 +90,7 @@ function buildUninstallTree(files: AppFileEntry[]): TreeNode[] {
 }
 
 export default function UninstallView({ isActive }: { isActive: boolean }) {
+  const { t } = useI18n();
   const {
     phase,
     apps,
@@ -228,23 +230,23 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold text-gray-100">
-            应用深度卸载
+            {t("nav.uninstall")}
           </h2>
           <button
             onClick={() => refreshApps()}
             disabled={appsLoading}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-700/60 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="刷新应用列表"
+            title={t("uninstall.tooltip.refresh")}
           >
             <IconRefresh
               size={14}
               className={appsLoading ? "animate-spin" : ""}
             />
-            <span>刷新</span>
+            <span>{t("uninstall.action.refresh")}</span>
           </button>
         </div>
         <p className="text-sm text-gray-400">
-          选择要卸载的应用，将扫描并删除其所有残余文件（缓存、偏好设置、日志等）。
+          {t("uninstall.subtitle")}
         </p>
 
         {error && (
@@ -256,7 +258,7 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
         <div className="relative">
           <input
             type="text"
-            placeholder="搜索应用名称..."
+            placeholder={t("uninstall.search.placeholder")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
@@ -267,12 +269,12 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
           <div className="flex items-center justify-center py-12">
             <IconLoader className="animate-spin text-blue-400" />
             <span className="ml-2 text-gray-400 text-sm">
-              正在扫描已安装应用...
+              {t("uninstall.state.scanning_apps")}
             </span>
           </div>
         ) : filteredApps.length === 0 ? (
           <div className="text-center py-12 text-gray-500 text-sm">
-            {searchQuery ? "未找到匹配的应用" : "未找到已安装的应用"}
+            {searchQuery ? t("uninstall.state.no_matching_apps") : t("uninstall.state.no_apps")}
           </div>
         ) : (
           <div ref={listScrollRef} className="space-y-1 max-h-[60vh] overflow-y-auto custom-scrollbar">
@@ -328,12 +330,12 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
     return (
       <div className="space-y-4">
         <h2 className="text-xl font-semibold text-gray-100">
-          应用深度卸载
+          {t("nav.uninstall")}
         </h2>
         <div className="flex flex-col items-center justify-center py-16">
           <IconLoader className="animate-spin text-blue-400 w-8 h-8" />
           <p className="mt-4 text-gray-300 text-sm">
-            正在扫描 {selectedApp?.name} 的残余文件...
+            {t("uninstall.state.scanning_files").replace("{app}", selectedApp?.name || "")}
           </p>
         </div>
       </div>
@@ -350,10 +352,10 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
               onClick={goBackToSelect}
               className="text-gray-400 hover:text-gray-200 text-sm"
             >
-              &larr; 返回
+              &larr; {t("uninstall.action.back")}
             </button>
             <h2 className="text-xl font-semibold text-gray-100">
-              {selectedApp?.name} 残余文件
+              {t("uninstall.review.title").replace("{app}", selectedApp?.name || "")}
             </h2>
           </div>
         </div>
@@ -368,11 +370,12 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
           <>
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-400">
-                共发现 {fileGroups.reduce((s, g) => s + g.fileCount, 0)} 个文件，
-                总计 {formatSize(fileGroups.reduce((s, g) => s + g.totalSize, 0))}
+                {t("uninstall.review.summary")
+                  .replace("{count}", String(fileGroups.reduce((s, g) => s + g.fileCount, 0)))
+                  .replace("{size}", formatSize(fileGroups.reduce((s, g) => s + g.totalSize, 0)))}
               </span>
               <span className="text-blue-400 font-medium">
-                已选 {formatSize(selectedTotalSize)}
+                {t("uninstall.review.selected_size").replace("{size}", formatSize(selectedTotalSize))}
               </span>
             </div>
 
@@ -391,20 +394,28 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-gray-200">
-                        {group.categoryName}
+                        {(() => {
+                          const key = `uninstall.category.${group.category}`;
+                          const val = t(key);
+                          return val === key ? group.categoryName : val;
+                        })()}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {group.riskHint}
+                        {(() => {
+                          const key = `uninstall.risk.${group.category}`;
+                          const val = t(key);
+                          return val === key ? group.riskHint : val;
+                        })()}
                       </div>
                     </div>
                     <div className="text-xs text-gray-400 shrink-0">
-                      {group.fileCount} 个文件 / {formatSize(group.totalSize)}
+                      {t("scan.status.files_count").replace("{count}", String(group.fileCount))} / {formatSize(group.totalSize)}
                     </div>
                     <button
                       onClick={() => toggleExpanded(group.category)}
                       className="text-gray-500 hover:text-gray-300 text-xs shrink-0"
                     >
-                      {expandedGroups.has(group.category) ? "收起" : "展开"}
+                      {expandedGroups.has(group.category) ? t("uninstall.review.collapse") : t("uninstall.review.expand")}
                     </button>
                   </div>
 
@@ -476,14 +487,14 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
                 onClick={goBackToSelect}
                 className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors"
               >
-                取消
+                {t("modal.cancel")}
               </button>
               <button
                 onClick={() => setShowConfirm(true)}
                 className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-500 transition-colors flex items-center gap-2"
               >
                 <IconTrash />
-                卸载
+                {t("uninstall.action.uninstall")}
               </button>
             </div>
           </>
@@ -491,7 +502,7 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
 
         {fileGroups.length === 0 && (
           <div className="text-center py-8 text-gray-500 text-sm">
-            未发现残余文件，但你可以将应用本身移至废纸篓。
+            {t("uninstall.state.no_residuals")}
           </div>
         )}
 
@@ -501,14 +512,14 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
               onClick={goBackToSelect}
               className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors"
             >
-              取消
+              {t("modal.cancel")}
             </button>
             <button
               onClick={() => setShowConfirm(true)}
               className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-500 transition-colors flex items-center gap-2"
             >
               <IconTrash />
-              卸载
+              {t("uninstall.action.uninstall")}
             </button>
           </div>
         )}
@@ -521,15 +532,16 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
                 <IconAlert className="text-yellow-500 mt-0.5" />
                 <div>
                   <h3 className="text-base font-semibold text-gray-100">
-                    确认卸载
+                    {t("uninstall.confirm.dialog.title")}
                   </h3>
                   <p className="text-sm text-gray-400 mt-1">
-                    将把应用移至废纸篓。你还可以选择是否同时删除选中的残余文件。
+                    {t("uninstall.confirm.dialog.desc")}
                   </p>
                   {selectedPaths.length > 0 && (
                     <p className="text-xs text-gray-500 mt-2">
-                      已选中 {selectedPaths.length} 个残余文件，共{" "}
-                      {formatSize(selectedTotalSize)}
+                      {t("uninstall.confirm.dialog.selected")
+                        .replace("{count}", String(selectedPaths.length))
+                        .replace("{size}", formatSize(selectedTotalSize))}
                     </p>
                   )}
                 </div>
@@ -544,7 +556,7 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
                   }}
                   className="w-full px-4 py-2.5 rounded-lg text-sm font-medium text-gray-200 bg-gray-800 hover:bg-gray-700 transition-colors"
                 >
-                  仅卸载（移至废纸篓）
+                  {t("uninstall.action.uninstall_only")}
                 </button>
                 <button
                   onClick={() => {
@@ -556,7 +568,7 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
                   disabled={selectedPaths.length === 0}
                   className="w-full px-4 py-2.5 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  卸载并删除选中数据
+                  {t("uninstall.action.uninstall_clean")}
                 </button>
                 {hasOfficialUninstaller && (
                   <button
@@ -568,14 +580,14 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
                     }}
                     className="w-full px-4 py-2.5 rounded-lg text-sm font-medium bg-orange-600 text-white hover:bg-orange-500 transition-colors"
                   >
-                    官方卸载 + 清理残余
+                    {t("uninstall.action.official_clean")}
                   </button>
                 )}
                 <button
                   onClick={() => setShowConfirm(false)}
                   className="w-full px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors"
                 >
-                  取消
+                  {t("modal.cancel")}
                 </button>
               </div>
             </div>
@@ -591,23 +603,22 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
     return (
       <div className="space-y-4">
         <h2 className="text-xl font-semibold text-gray-100">
-          应用深度卸载
+          {t("nav.uninstall")}
         </h2>
         <div className="flex flex-col items-center justify-center py-12">
           <IconLoader className="animate-spin text-blue-400 w-8 h-8" />
           <p className="mt-4 text-gray-300 text-sm">
             {officialUninstallerPhase === "running"
-              ? "正在执行官方卸载程序..."
+              ? t("uninstall.state.official_running")
               : officialUninstallerPhase === "completed"
-                ? "官方卸载已完成，正在清理残余文件..."
+                ? t("uninstall.state.official_completed")
                 : officialUninstallerPhase === "scanning_residuals"
-                  ? "正在扫描残余文件..."
-                  : "正在删除残余文件..."}
+                  ? t("uninstall.state.scanning_residuals")
+                  : t("uninstall.state.deleting")}
           </p>
           {progress && (
             <div className="mt-2 text-xs text-gray-500">
-              已删除 {progress.deletedFiles} 个文件，释放{" "}
-              {formatSize(progress.freedBytes)}
+              {t("uninstall.completed.deleted_files").replace("{count}", String(progress.deletedFiles))}，{t("uninstall.completed.released").replace("{size}", formatSize(progress.freedBytes))}
             </div>
           )}
           {progress?.currentPath && (
@@ -619,7 +630,7 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
             onClick={cancelOperation}
             className="mt-6 px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800"
           >
-            取消
+            {t("modal.cancel")}
           </button>
         </div>
       </div>
@@ -631,7 +642,7 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
     return (
       <div className="space-y-4">
         <h2 className="text-xl font-semibold text-gray-100">
-          应用深度卸载
+          {t("nav.uninstall")}
         </h2>
 
         {error && (
@@ -656,17 +667,17 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
               />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-100">卸载完成</h3>
+          <h3 className="text-lg font-medium text-gray-100">{t("uninstall.completed.title")}</h3>
           {uninstallSummary && (
             <div className="mt-2 text-sm text-gray-400 text-center">
               <p>
-                已删除 {uninstallSummary.totalDeleted} 个文件
+                {t("uninstall.completed.deleted_files").replace("{count}", String(uninstallSummary.totalDeleted))}
               </p>
               <p>
-                释放 {formatSize(uninstallSummary.totalFreed)} 空间
+                {t("uninstall.completed.released").replace("{size}", formatSize(uninstallSummary.totalFreed))}
               </p>
               <p className="text-xs text-gray-600 mt-1">
-                耗时 {uninstallSummary.durationMs}ms
+                {t("uninstall.completed.duration").replace("{duration}", String(uninstallSummary.durationMs))}
               </p>
             </div>
           )}
@@ -674,7 +685,7 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
             onClick={resetToSelect}
             className="mt-6 px-6 py-2.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 transition-colors"
           >
-            返回应用列表
+            {t("uninstall.action.done")}
           </button>
         </div>
       </div>
