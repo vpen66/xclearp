@@ -113,6 +113,31 @@ identifier = "allow-relaunch"
 description = "Enables the relaunch command"
 commands.allow = ["relaunch"]
 
+[[permission]]
+identifier = "allow-list-apps"
+description = "Enables the list_apps command"
+commands.allow = ["list_apps"]
+
+[[permission]]
+identifier = "allow-scan-app"
+description = "Enables the scan_app command"
+commands.allow = ["scan_app"]
+
+[[permission]]
+identifier = "allow-uninstall-app"
+description = "Enables the uninstall_app command"
+commands.allow = ["uninstall_app"]
+
+[[permission]]
+identifier = "allow-cancel-uninstall"
+description = "Enables the cancel_uninstall command"
+commands.allow = ["cancel_uninstall"]
+
+[[permission]]
+identifier = "allow-get-icon-data-urls"
+description = "Enables the get_icon_data_urls command"
+commands.allow = ["get_icon_data_urls"]
+
 [[permission-set]]
 identifier = "default"
 description = "Default permission set for XClearp app commands"
@@ -140,5 +165,10 @@ permissions = [
   "allow-open-system-settings-pane",
   "allow-delete-rule",
   "allow-relaunch",
+  "allow-list-apps",
+  "allow-scan-app",
+  "allow-uninstall-app",
+  "allow-cancel-uninstall",
+  "allow-get-icon-data-urls",
 ]
 

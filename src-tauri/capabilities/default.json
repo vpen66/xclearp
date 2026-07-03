@@ -32,6 +32,11 @@
     "allow-open-system-settings-pane",
     "allow-delete-rule",
     "allow-relaunch",
+    "allow-list-apps",
+    "allow-scan-app",
+    "allow-uninstall-app",
+    "allow-cancel-uninstall",
+    "allow-get-icon-data-urls",
     "updater:default"
   ]
 }

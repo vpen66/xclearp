@@ -6,6 +6,7 @@ pub mod windows;
 use std::path::{Path, PathBuf};
 
 use crate::core::rules::CleanRule;
+use crate::core::uninstall::InstalledApp;
 
 /// Error type for platform-specific operations.
 #[derive(Debug, Clone)]
@@ -56,6 +57,9 @@ pub trait PlatformProvider: Send + Sync {
     /// Safely remove a file or directory (move to trash if possible).
     fn safe_remove(&self, path: &Path) -> Result<(), PlatformError>;
 
+    /// Move a file or directory to the system trash.
+    fn move_to_trash(&self, path: &Path) -> Result<(), PlatformError>;
+
     /// Empty the system trash/recycle bin.
     fn empty_trash(&self) -> Result<(), PlatformError>;
 
@@ -67,6 +71,9 @@ pub trait PlatformProvider: Send + Sync {
 
     /// Return the platform name.
     fn name(&self) -> &str;
+
+    /// List all installed applications on this platform.
+    fn list_installed_apps(&self) -> Vec<InstalledApp>;
 }
 
 /// Factory function to create the appropriate platform provider.

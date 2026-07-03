@@ -10,6 +10,7 @@ import SettingsView from "./components/SettingsView";
 import ScanView from "./components/ScanView";
 import CleanProgress from "./components/CleanProgress";
 import DiskAnalysis from "./components/DiskAnalysis";
+import UninstallView from "./components/UninstallView";
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>("scan");
@@ -132,58 +133,6 @@ function App() {
     await scan.startScan(ruleIds);
   };
 
-  const renderContent = () => {
-    switch (currentPage) {
-      case "scan":
-        return (
-          <div className="space-y-6">
-            <ScanView
-              groups={groups}
-              isScanning={scan.isScanning}
-              scanProgress={scan.scanProgress}
-              discoveredFiles={scan.discoveredFiles}
-              scanSummary={scan.scanSummary}
-              onStartScan={handleStartScan}
-              onCancelScan={scan.cancelScan}
-              onStartClean={clean.startClean}
-              error={scan.error || clean.error}
-            />
-            <CleanProgress
-              isCleaning={clean.isCleaning}
-              cleanProgress={clean.cleanProgress}
-              cleanSummary={clean.cleanSummary}
-              totalTargets={clean.totalTargets}
-              onCancel={clean.cancelClean}
-              error={clean.error}
-            />
-          </div>
-        );
-
-      case "disk":
-        return <DiskAnalysis groups={groups} onAddRule={handleAddRule} />;
-
-      case "settings":
-        return (
-          <SettingsView
-            groups={groups}
-            loading={loading}
-            onToggleRule={handleToggleRule}
-            onAddRule={handleAddRule}
-            onEditRule={handleEditRule}
-            onDeleteRule={deleteRule}
-            onAddGroup={addGroup}
-            onDeleteGroup={deleteGroup}
-            onImportRules={handleImportRules}
-            generalSettings={generalSettings}
-            setGeneralSettings={setGeneralSettings}
-          />
-        );
-
-      default:
-        return null;
-    }
-  };
-
   return (
     <div className={`flex h-screen bg-gray-950 text-gray-100 overflow-hidden ${isDragging ? "select-none cursor-col-resize" : ""}`}>
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} width={sidebarWidth} />
@@ -207,7 +156,51 @@ function App() {
               {groupsError}
             </div>
           )}
-          {renderContent()}
+          {currentPage === "scan" && (
+            <div className="space-y-6">
+              <ScanView
+                groups={groups}
+                isScanning={scan.isScanning}
+                scanProgress={scan.scanProgress}
+                discoveredFiles={scan.discoveredFiles}
+                scanSummary={scan.scanSummary}
+                onStartScan={handleStartScan}
+                onCancelScan={scan.cancelScan}
+                onStartClean={clean.startClean}
+                error={scan.error || clean.error}
+              />
+              <CleanProgress
+                isCleaning={clean.isCleaning}
+                cleanProgress={clean.cleanProgress}
+                cleanSummary={clean.cleanSummary}
+                totalTargets={clean.totalTargets}
+                onCancel={clean.cancelClean}
+                error={clean.error}
+              />
+            </div>
+          )}
+          {currentPage === "disk" && (
+            <DiskAnalysis groups={groups} onAddRule={handleAddRule} />
+          )}
+          {/* Always keep UninstallView mounted to preserve state across tabs */}
+          <div className={currentPage === "uninstall" ? "" : "hidden"}>
+            <UninstallView isActive={currentPage === "uninstall"} />
+          </div>
+          {currentPage === "settings" && (
+            <SettingsView
+              groups={groups}
+              loading={loading}
+              onToggleRule={handleToggleRule}
+              onAddRule={handleAddRule}
+              onEditRule={handleEditRule}
+              onDeleteRule={deleteRule}
+              onAddGroup={addGroup}
+              onDeleteGroup={deleteGroup}
+              onImportRules={handleImportRules}
+              generalSettings={generalSettings}
+              setGeneralSettings={setGeneralSettings}
+            />
+          )}
         </div>
       </main>
     </div>

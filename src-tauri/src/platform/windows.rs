@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use super::common;
 use super::{PermissionStatus, PlatformError, PlatformProvider};
 use crate::core::rules::CleanRule;
+use crate::core::uninstall::InstalledApp;
 
 /// Windows-specific platform provider.
 pub struct WindowsProvider;
@@ -134,6 +135,34 @@ impl PlatformProvider for WindowsProvider {
         )
     }
 
+    fn move_to_trash(&self, path: &Path) -> Result<(), PlatformError> {
+        if !path.exists() {
+            return Ok(());
+        }
+        // Use PowerShell to move to recycle bin
+        let ps_script = format!(
+            "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('{}', 'OnlyErrorDialogs', 'SendToRecycleBin')",
+            path.to_string_lossy().replace('"', "'")
+        );
+        let output = std::process::Command::new("powershell")
+            .args(["-Command", &ps_script])
+            .output()
+            .map_err(|e| PlatformError {
+                message: format!("Failed to run PowerShell: {}", e),
+                path: Some(path.to_path_buf()),
+            })?;
+
+        if output.status.success() {
+            Ok(())
+        } else {
+            // Fallback to direct removal
+            common::safe_remove_impl(path, &PlatformError {
+                message: "Failed to trash, direct remove failed".to_string(),
+                path: Some(path.to_path_buf()),
+            })
+        }
+    }
+
     fn empty_trash(&self) -> Result<(), PlatformError> {
         // On Windows, use shell API to empty recycle bin
         // For now, this is a simplified implementation
@@ -167,5 +196,10 @@ impl PlatformProvider for WindowsProvider {
 
     fn name(&self) -> &str {
         "windows"
+    }
+
+    fn list_installed_apps(&self) -> Vec<InstalledApp> {
+        // Windows stub: not implemented yet
+        Vec::new()
     }
 }

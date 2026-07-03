@@ -1,7 +1,7 @@
 /** Hook: manages disk analysis state — streaming event-driven directory analysis */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { startDiskAnalysis, listenToDiskEvents, getDiskUsage, getHomeDir, clearDiskAnalysisCache } from "../lib/ipc";
+import { startDiskAnalysis, listenToDiskEvents, getDiskUsage, getHomeDir, clearDiskAnalysisCache, getPlatform } from "../lib/ipc";
 import type { FileEntry, DiskUsage, SortField, SortOrder, DiskEvent } from "../types/disk";
 
 export interface UseDiskAnalysisReturn {
@@ -69,12 +69,12 @@ function getParentPath(path: string): string {
   const normalized = path.replace(/\\/g, "/");
   
   if (/^[a-zA-Z]:\/?$/.test(normalized)) {
-    return "";
+    return "/";
   }
   
   const parts = normalized.split("/").filter(Boolean);
   if (parts.length <= 1) {
-    return isWindowsDrivePath(normalized) ? "" : "/";
+    return isWindowsDrivePath(normalized) ? "/" : "/";
   }
   
   if (isWindowsDrivePath(normalized)) {
@@ -280,6 +280,15 @@ export function useDiskAnalysis(): UseDiskAnalysisReturn {
     let mounted = true;
     (async () => {
       try {
+        const platform = await getPlatform();
+        const isWin = platform === "win32" || platform === "windows";
+        if (isWin) {
+          if (mounted) {
+            setCurrentPath("/");
+          }
+          return;
+        }
+
         const homeDir = await getHomeDir();
         if (mounted && homeDir) {
           setCurrentPath(homeDir);

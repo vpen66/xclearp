@@ -909,12 +909,16 @@ export default function ScanView({
             : "opacity-0 py-0 max-h-0 pointer-events-none"
         }`}
       >
-        <div className="w-16 h-16 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-4 text-gray-500 shadow-xl shadow-black/10">
-          <Zap size={24} className="text-blue-500 animate-pulse" />
-        </div>
+        <button
+          onClick={handleScan}
+          className="w-16 h-16 rounded-2xl bg-gray-900 border border-gray-800 hover:border-blue-500/50 hover:bg-gray-850 flex items-center justify-center mb-4 text-gray-500 hover:text-blue-400 shadow-xl shadow-black/10 active:scale-95 transition-all duration-200 group"
+          title="点击开始扫描"
+        >
+          <Zap size={24} className="text-blue-500 group-hover:scale-110 group-hover:text-blue-400 transition-all duration-300 animate-pulse" />
+        </button>
         <p className="text-sm font-semibold text-gray-300">系统就绪，等待扫描</p>
         <p className="text-xs text-gray-500 mt-1 max-w-xs leading-relaxed">
-          点击“开始扫描”按钮来检索您系统中由规则组定义的可清理冗余文件。
+          点击上方图标或“开始扫描”按钮来检索您系统中由规则组定义的可清理冗余文件。
         </p>
       </div>
     </div>

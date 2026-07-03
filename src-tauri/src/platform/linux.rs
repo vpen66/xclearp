@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use super::common;
 use super::{PermissionStatus, PlatformError, PlatformProvider};
 use crate::core::rules::CleanRule;
+use crate::core::uninstall::InstalledApp;
 
 /// Linux-specific platform provider (follows XDG Base Directory Specification).
 pub struct LinuxProvider;
@@ -130,6 +131,35 @@ impl PlatformProvider for LinuxProvider {
         )
     }
 
+    fn move_to_trash(&self, path: &Path) -> Result<(), PlatformError> {
+        if !path.exists() {
+            return Ok(());
+        }
+        // Try gio trash first, then trash-put
+        let output = std::process::Command::new("gio")
+            .args(["trash", &path.to_string_lossy()])
+            .output()
+            .or_else(|_| {
+                std::process::Command::new("trash-put")
+                    .arg(path)
+                    .output()
+            })
+            .map_err(|e| PlatformError {
+                message: format!("Failed to move to trash: {}", e),
+                path: Some(path.to_path_buf()),
+            })?;
+
+        if output.status.success() {
+            Ok(())
+        } else {
+            // Fallback to direct removal
+            common::safe_remove_impl(path, &PlatformError {
+                message: "Failed to trash, direct remove failed".to_string(),
+                path: Some(path.to_path_buf()),
+            })
+        }
+    }
+
     fn empty_trash(&self) -> Result<(), PlatformError> {
         let trash_dir = Self::xdg_data_home().join("Trash");
         if !trash_dir.exists() {
@@ -177,5 +207,10 @@ impl PlatformProvider for LinuxProvider {
 
     fn name(&self) -> &str {
         "linux"
+    }
+
+    fn list_installed_apps(&self) -> Vec<InstalledApp> {
+        // Linux stub: not implemented yet
+        Vec::new()
     }
 }

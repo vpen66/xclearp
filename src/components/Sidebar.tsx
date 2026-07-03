@@ -5,6 +5,7 @@ import {
   IconSearch,
   IconHardDrive,
   IconSettings,
+  IconPackageX,
 } from "./Icons";
 
 interface SidebarProps {
@@ -16,6 +17,7 @@ interface SidebarProps {
 const navItems: { page: Page; label: string; icon: React.ReactNode }[] = [
   { page: "scan", label: "扫描清理", icon: <IconSearch /> },
   { page: "disk", label: "磁盘分析", icon: <IconHardDrive /> },
+  { page: "uninstall", label: "应用卸载", icon: <IconPackageX /> },
   { page: "settings", label: "设置", icon: <IconSettings /> },
 ];
 
