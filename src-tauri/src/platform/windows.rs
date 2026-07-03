@@ -156,10 +156,13 @@ impl PlatformProvider for WindowsProvider {
             Ok(())
         } else {
             // Fallback to direct removal
-            common::safe_remove_impl(path, &PlatformError {
-                message: "Failed to trash, direct remove failed".to_string(),
-                path: Some(path.to_path_buf()),
-            })
+            common::safe_remove_impl(
+                path,
+                &PlatformError {
+                    message: "Failed to trash, direct remove failed".to_string(),
+                    path: Some(path.to_path_buf()),
+                },
+            )
         }
     }
 

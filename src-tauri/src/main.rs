@@ -49,10 +49,8 @@ fn main() {
             // Create UninstallEventBus and UninstallEngine
             let (uninstall_event_bus, mut uninstall_rx) = UninstallEventBus::new();
             let uninstall_event_bus = Arc::new(uninstall_event_bus);
-            let uninstall_engine = UninstallEngine::new(
-                Arc::clone(&uninstall_event_bus),
-                Arc::clone(&platform),
-            );
+            let uninstall_engine =
+                UninstallEngine::new(Arc::clone(&uninstall_event_bus), Arc::clone(&platform));
             app.manage(uninstall_engine);
 
             // Spawn background task to forward events to the frontend via Tauri emit

@@ -139,11 +139,7 @@ impl PlatformProvider for LinuxProvider {
         let output = std::process::Command::new("gio")
             .args(["trash", &path.to_string_lossy()])
             .output()
-            .or_else(|_| {
-                std::process::Command::new("trash-put")
-                    .arg(path)
-                    .output()
-            })
+            .or_else(|_| std::process::Command::new("trash-put").arg(path).output())
             .map_err(|e| PlatformError {
                 message: format!("Failed to move to trash: {}", e),
                 path: Some(path.to_path_buf()),
@@ -153,10 +149,13 @@ impl PlatformProvider for LinuxProvider {
             Ok(())
         } else {
             // Fallback to direct removal
-            common::safe_remove_impl(path, &PlatformError {
-                message: "Failed to trash, direct remove failed".to_string(),
-                path: Some(path.to_path_buf()),
-            })
+            common::safe_remove_impl(
+                path,
+                &PlatformError {
+                    message: "Failed to trash, direct remove failed".to_string(),
+                    path: Some(path.to_path_buf()),
+                },
+            )
         }
     }
 

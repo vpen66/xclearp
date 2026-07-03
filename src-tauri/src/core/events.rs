@@ -137,10 +137,7 @@ pub enum UninstallEvent {
         duration_ms: u64,
     },
     #[serde(rename = "app_move_started")]
-    AppMoveStarted {
-        op_id: String,
-        app_path: String,
-    },
+    AppMoveStarted { op_id: String, app_path: String },
     #[serde(rename = "delete_progress")]
     DeleteProgress {
         op_id: String,

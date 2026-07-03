@@ -115,21 +115,23 @@ pub fn scan_app_residuals(
     }
 
     // LaunchAgents (user-level)
+    scan_launch_items(&home.join("Library/LaunchAgents"), bundle_id, &mut |p| {
+        add(AppFileCategory::LaunchAgents, p)
+    });
+
+    // LaunchAgents (system-level)
     scan_launch_items(
-        &home.join("Library/LaunchAgents"),
+        &PathBuf::from("/Library/LaunchAgents"),
         bundle_id,
         &mut |p| add(AppFileCategory::LaunchAgents, p),
     );
 
-    // LaunchAgents (system-level)
-    scan_launch_items(&PathBuf::from("/Library/LaunchAgents"), bundle_id, &mut |p| {
-        add(AppFileCategory::LaunchAgents, p)
-    });
-
     // LaunchDaemons
-    scan_launch_items(&PathBuf::from("/Library/LaunchDaemons"), bundle_id, &mut |p| {
-        add(AppFileCategory::LaunchDaemons, p)
-    });
+    scan_launch_items(
+        &PathBuf::from("/Library/LaunchDaemons"),
+        bundle_id,
+        &mut |p| add(AppFileCategory::LaunchDaemons, p),
+    );
 
     // Scan each category and build file groups
     let mut groups: Vec<AppFileGroup> = Vec::new();

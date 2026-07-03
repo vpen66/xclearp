@@ -7,9 +7,7 @@ use crate::core::uninstall::{AppFileGroup, InstalledApp};
 
 /// List all installed applications on the current platform.
 #[command]
-pub async fn list_apps(
-    engine: State<'_, UninstallEngine>,
-) -> Result<Vec<InstalledApp>, String> {
+pub async fn list_apps(engine: State<'_, UninstallEngine>) -> Result<Vec<InstalledApp>, String> {
     Ok(engine.list_installed_apps())
 }
 
@@ -56,10 +54,7 @@ pub async fn get_icon_data_urls(paths: Vec<String>) -> Result<HashMap<String, St
                 Ok(Ok(data)) => {
                     use base64::Engine;
                     let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
-                    result.insert(
-                        path_str.clone(),
-                        format!("data:image/png;base64,{}", b64),
-                    );
+                    result.insert(path_str.clone(), format!("data:image/png;base64,{}", b64));
                 }
                 _ => {}
             }
