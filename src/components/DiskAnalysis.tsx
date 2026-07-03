@@ -100,9 +100,9 @@ function isWindowsDrivePath(p: string): boolean {
   return /^[a-zA-Z]:/.test(p);
 }
 
-function buildBreadcrumbSegments(path: string): { label: string; path: string }[] {
-  if (!path) return [{ label: "此电脑", path: "" }];
-  if (path === "/") return [{ label: "/", path: "/" }];
+function buildBreadcrumbSegments(path: string, platform?: string): { label: string; path: string }[] {
+  const isWinPlatform = platform === "win32" || platform === "windows";
+  if (!path || path === "/") return [{ label: isWinPlatform ? "此电脑" : "/", path: "/" }];
   
   const normalized = path.replace(/\\/g, "/");
   const isWin = isWindowsDrivePath(normalized);
@@ -110,7 +110,7 @@ function buildBreadcrumbSegments(path: string): { label: string; path: string }[
   
   const segs: { label: string; path: string }[] = [];
   if (isWin) {
-    segs.push({ label: "此电脑", path: "" });
+    segs.push({ label: "此电脑", path: "/" });
   } else {
     segs.push({ label: "/", path: "/" });
   }
@@ -321,7 +321,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
   const parentColors: LevelColor = { bg: "bg-indigo-500", text: "text-indigo-400" };
   const currentColors: LevelColor = { bg: "bg-purple-500", text: "text-purple-400" };
 
-  const breadcrumbs = currentPath ? buildBreadcrumbSegments(currentPath) : [];
+  const breadcrumbs = buildBreadcrumbSegments(currentPath, platform);
 
   const sortLabel: Record<SortField, string> = {
     name: "名称",

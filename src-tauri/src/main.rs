@@ -9,9 +9,10 @@ use std::sync::Arc;
 
 use tauri::{Emitter, Manager};
 
-use commands::{clean, disk, rules, scan};
+use commands::{clean, disk, rules, scan, uninstall};
 use core::engine::CleanEngine;
-use core::event_bus::EventBus;
+use core::event_bus::{EventBus, UninstallEventBus};
+use core::uninstall::engine::UninstallEngine;
 use platform::create_platform_provider;
 
 #[tauri::command]
@@ -41,15 +42,30 @@ fn main() {
                 Arc::from(create_platform_provider());
 
             // Create CleanEngine and register as managed state
-            let engine = CleanEngine::new(Arc::clone(&event_bus), whitelist, platform);
+            let engine = CleanEngine::new(Arc::clone(&event_bus), whitelist, Arc::clone(&platform));
             app.manage(engine);
             app.manage(disk::DiskAnalysisState::default());
+
+            // Create UninstallEventBus and UninstallEngine
+            let (uninstall_event_bus, mut uninstall_rx) = UninstallEventBus::new();
+            let uninstall_event_bus = Arc::new(uninstall_event_bus);
+            let uninstall_engine =
+                UninstallEngine::new(Arc::clone(&uninstall_event_bus), Arc::clone(&platform));
+            app.manage(uninstall_engine);
 
             // Spawn background task to forward events to the frontend via Tauri emit
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 while let Some(event) = rx.recv().await {
                     app_handle.emit("clean-event", &event).ok();
+                }
+            });
+
+            // Spawn background task to forward uninstall events to the frontend
+            let app_handle_uninstall = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                while let Some(event) = uninstall_rx.recv().await {
+                    app_handle_uninstall.emit("uninstall-event", &event).ok();
                 }
             });
 
@@ -78,6 +94,11 @@ fn main() {
             disk::get_platform,
             disk::check_disk_permissions,
             disk::open_system_settings_pane,
+            uninstall::list_apps,
+            uninstall::scan_app,
+            uninstall::uninstall_app,
+            uninstall::cancel_uninstall,
+            uninstall::get_icon_data_urls,
             relaunch,
         ])
         .run(tauri::generate_context!())

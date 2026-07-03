@@ -71,5 +71,5 @@ export interface CleanSummary {
 }
 
 /** Navigation page identifiers */
-export type Page = "scan" | "disk" | "settings";
+export type Page = "scan" | "disk" | "uninstall" | "settings";
 

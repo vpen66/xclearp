@@ -19,6 +19,7 @@ import {
   ClipboardCopy,
   ListPlus,
   ChevronRight as ChevronRightIcon,
+  PackageX,
 } from "lucide-react";
 
 export function IconBox(props: React.ComponentProps<typeof Box>) {
@@ -93,4 +94,8 @@ export function IconChevronRightSmall(
   props: React.ComponentProps<typeof ChevronRightIcon>,
 ) {
   return <ChevronRightIcon size={14} strokeWidth={2} {...props} />;
+}
+
+export function IconPackageX(props: React.ComponentProps<typeof PackageX>) {
+  return <PackageX size={20} strokeWidth={2} {...props} />;
 }

@@ -107,3 +107,74 @@ impl CleanEvent {
         serde_json::to_string(self)
     }
 }
+
+/// Events emitted during application uninstall operations.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "type")]
+pub enum UninstallEvent {
+    #[serde(rename = "app_scan_started")]
+    AppScanStarted { op_id: String, app_name: String },
+    #[serde(rename = "category_discovered")]
+    CategoryDiscovered {
+        op_id: String,
+        category: String,
+        file_count: u64,
+        total_size: u64,
+        risk_hint: String,
+    },
+    #[serde(rename = "app_scan_progress")]
+    AppScanProgress {
+        op_id: String,
+        scanned_paths: u64,
+        current_path: String,
+    },
+    #[serde(rename = "app_scan_completed")]
+    AppScanCompleted {
+        op_id: String,
+        total_files: u64,
+        total_size: u64,
+        categories_count: u64,
+        duration_ms: u64,
+    },
+    #[serde(rename = "app_move_started")]
+    AppMoveStarted { op_id: String, app_path: String },
+    #[serde(rename = "delete_progress")]
+    DeleteProgress {
+        op_id: String,
+        deleted_files: u64,
+        freed_bytes: u64,
+        current_path: String,
+    },
+    #[serde(rename = "uninstall_completed")]
+    UninstallCompleted {
+        op_id: String,
+        total_deleted: u64,
+        total_freed: u64,
+        duration_ms: u64,
+    },
+    #[serde(rename = "uninstall_error")]
+    UninstallError {
+        op_id: String,
+        message: String,
+        recoverable: bool,
+    },
+    #[serde(rename = "uninstall_cancelled")]
+    UninstallCancelled { op_id: String },
+}
+
+#[allow(dead_code)]
+impl UninstallEvent {
+    pub fn op_id(&self) -> &str {
+        match self {
+            UninstallEvent::AppScanStarted { op_id, .. }
+            | UninstallEvent::CategoryDiscovered { op_id, .. }
+            | UninstallEvent::AppScanProgress { op_id, .. }
+            | UninstallEvent::AppScanCompleted { op_id, .. }
+            | UninstallEvent::AppMoveStarted { op_id, .. }
+            | UninstallEvent::DeleteProgress { op_id, .. }
+            | UninstallEvent::UninstallCompleted { op_id, .. }
+            | UninstallEvent::UninstallError { op_id, .. }
+            | UninstallEvent::UninstallCancelled { op_id } => op_id,
+        }
+    }
+}

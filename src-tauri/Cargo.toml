@@ -19,6 +19,8 @@ ignore = "0.4"
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 libc = "0.2"
+plist = "1"
+base64 = "0.22"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

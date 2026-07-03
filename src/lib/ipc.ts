@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { NdjsonEnvelope, ScanTarget, RuleGroup, CleanRule, FileEntry, DiskUsage } from "../types/index";
 import type { DiskEvent } from "../types/disk";
+import type { InstalledApp, UninstallEvent, AppFileGroup } from "../types/uninstall";
 
 /** Start a scan with the given rule IDs. Returns the operation ID. */
 export async function startScan(ruleIds: string[]): Promise<{ op_id: string }> {
@@ -101,6 +102,9 @@ export async function getHomeDir(): Promise<string> {
     const usage = await getDiskUsage();
     console.log("[getHomeDir] Got disk usage:", usage, "mountPoint:", usage?.mountPoint);
     if (usage && usage.mountPoint) {
+      if (usage.mountPoint === "此电脑") {
+        return "/";
+      }
       return usage.mountPoint;
     }
     console.warn("[getHomeDir] mountPoint is missing, using fallback");
@@ -171,5 +175,49 @@ export async function checkDiskPermissions(): Promise<PermissionStatus> {
 /** Open system settings privacy pane or UAC settings */
 export async function openSystemSettingsPane(): Promise<void> {
   return invoke("open_system_settings_pane");
+}
+
+// --- Uninstall commands ---
+
+/** List all installed applications. */
+export async function listApps(): Promise<InstalledApp[]> {
+  return invoke<InstalledApp[]>("list_apps");
+}
+
+/** Start scanning residual files for a given app. Returns file groups directly. */
+export async function scanApp(app: InstalledApp): Promise<AppFileGroup[]> {
+  return invoke<AppFileGroup[]>("scan_app", { app });
+}
+
+/** Uninstall/delete selected residual paths. */
+export async function uninstallApp(
+  appPath: string,
+  residualPaths: string[],
+): Promise<{ op_id: string }> {
+  return invoke<{ op_id: string }>("uninstall_app", {
+    appPath,
+    residualPaths,
+  });
+}
+
+/** Cancel an active uninstall operation. */
+export async function cancelUninstall(opId: string): Promise<boolean> {
+  return invoke<boolean>("cancel_uninstall", { opId });
+}
+
+/** Listen to uninstall streaming events from the backend. */
+export async function listenToUninstallEvents(
+  callback: (event: UninstallEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<UninstallEvent>("uninstall-event", (e) => {
+    callback(e.payload);
+  });
+}
+
+/** Read icon PNG files and return base64 data URLs for browser display. */
+export async function getIconDataUrls(
+  paths: string[],
+): Promise<Record<string, string>> {
+  return invoke<Record<string, string>>("get_icon_data_urls", { paths });
 }
 
