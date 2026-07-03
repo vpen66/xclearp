@@ -180,10 +180,8 @@ pub async fn list_directory(
         let drives = get_windows_drives();
         let mut entries = Vec::new();
         for drive in drives {
-            let mut total = 0;
             let mut used = 0;
             if let Ok(usage) = get_disk_usage_for_path(&drive) {
-                total = usage.total;
                 used = usage.used;
             }
             entries.push(FileEntry {
@@ -333,10 +331,8 @@ pub async fn start_disk_analysis(
             let mut entries_count = 0;
             let start_time = std::time::Instant::now();
             for drive in drives {
-                let mut total = 0;
                 let mut used = 0;
                 if let Ok(usage) = get_disk_usage_for_path(&drive) {
-                    total = usage.total;
                     used = usage.used;
                 }
                 let entry = FileEntry {

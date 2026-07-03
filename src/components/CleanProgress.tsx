@@ -2,6 +2,7 @@
 
 import type { CleanProgress as CleanProgressType, CleanSummary } from "../types/index";
 import { formatFileSize, formatDuration } from "../lib/ndjson";
+import { useI18n } from "../lib/i18n";
 
 interface CleanProgressProps {
   isCleaning: boolean;
@@ -20,6 +21,7 @@ export default function CleanProgress({
   onCancel,
   error,
 }: CleanProgressProps) {
+  const { t } = useI18n();
   if (!isCleaning && !cleanSummary && !error) return null;
 
   const progressPct =
@@ -33,14 +35,14 @@ export default function CleanProgress({
       {(isCleaning || cleanSummary) && (
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-100">
-            {isCleaning ? "正在清理..." : "清理完成"}
+            {isCleaning ? t("clean.state.cleaning") : t("clean.state.completed")}
           </h2>
           {isCleaning && (
             <button
               onClick={onCancel}
               className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600/80 text-white hover:bg-red-500 transition-colors"
             >
-              取消
+              {t("modal.cancel")}
             </button>
           )}
         </div>
@@ -59,7 +61,7 @@ export default function CleanProgress({
           {/* Percentage */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-400">
-              {cleanProgress?.deletedFiles ?? 0} / {totalTargets} 文件
+              {cleanProgress?.deletedFiles ?? 0} / {totalTargets} {t("clean.status.files")}
             </span>
             <span className="text-gray-50 font-semibold">{progressPct}%</span>
           </div>
@@ -74,7 +76,7 @@ export default function CleanProgress({
 
           {/* Stats */}
           <div className="flex items-center justify-between text-xs text-gray-500">
-            <span>已释放: {formatFileSize(cleanProgress?.freedBytes ?? 0)}</span>
+            <span>{t("clean.status.freed")}{formatFileSize(cleanProgress?.freedBytes ?? 0)}</span>
             {cleanProgress?.currentPath && (
               <span className="truncate max-w-[300px]" title={cleanProgress.currentPath}>
                 {cleanProgress.currentPath}
@@ -89,20 +91,20 @@ export default function CleanProgress({
         <div className="px-5 py-5 rounded-xl bg-gradient-to-r from-green-600/10 to-emerald-600/10 border border-green-500/20">
           <div className="flex items-center gap-2 mb-4">
             <span className="text-2xl">✅</span>
-            <span className="text-gray-50 font-semibold">清理完成</span>
+            <span className="text-gray-50 font-semibold">{t("clean.state.completed")}</span>
           </div>
           <div className="flex items-center gap-8">
             <div>
               <p className="text-2xl font-bold text-gray-50">{cleanSummary.totalDeleted}</p>
-              <p className="text-xs text-gray-400">已删除文件</p>
+              <p className="text-xs text-gray-400">{t("clean.summary.deleted")}</p>
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-50">{formatFileSize(cleanSummary.totalFreed)}</p>
-              <p className="text-xs text-gray-400">已释放空间</p>
+              <p className="text-xs text-gray-400">{t("clean.summary.freed")}</p>
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-50">{formatDuration(cleanSummary.durationMs)}</p>
-              <p className="text-xs text-gray-400">清理耗时</p>
+              <p className="text-xs text-gray-400">{t("clean.summary.duration")}</p>
             </div>
           </div>
         </div>

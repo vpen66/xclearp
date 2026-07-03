@@ -87,3 +87,4 @@ coverage/
 *.temp
 .cache/
 .qoder/
+.codegraph

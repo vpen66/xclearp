@@ -35,6 +35,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useToast } from "./Toast";
+import { useI18n } from "../lib/i18n";
 
 interface DiskAnalysisProps {
   groups: RuleGroup[];
@@ -74,7 +75,7 @@ function renderGroupIcon(iconName: string, className = "w-4 h-4") {
   }
 }
 
-function formatRelativeTime(iso: string | null): string {
+function formatRelativeTime(iso: string | null, t: (key: string) => string): string {
   if (!iso) return "—";
   const date = new Date(iso);
   const now = new Date();
@@ -84,25 +85,28 @@ function formatRelativeTime(iso: string | null): string {
   const diffHr = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHr / 24);
 
-  if (diffSec < 60) return "刚刚";
-  if (diffMin < 60) return `${diffMin}分钟前`;
-  if (diffHr < 24) return `${diffHr}小时前`;
-  if (diffDay === 1) return "昨天";
-  if (diffDay < 7) return `${diffDay}天前`;
+  if (diffSec < 60) return t("time.just_now");
+  if (diffMin < 60) return t("time.minutes_ago").replace("{mins}", String(diffMin));
+  if (diffHr < 24) return t("time.hours_ago").replace("{hours}", String(diffHr));
+  if (diffDay === 1) return t("time.yesterday");
+  if (diffDay < 7) return t("time.days_ago").replace("{days}", String(diffDay));
 
   const m = date.getMonth() + 1;
   const d = date.getDate();
   const y = date.getFullYear();
-  return y === now.getFullYear() ? `${m}月${d}日` : `${y}/${m}/${d}`;
+  return y === now.getFullYear()
+    ? t("time.date_format_this_year").replace("{month}", String(m)).replace("{day}", String(d))
+    : t("time.date_format_other_year").replace("{year}", String(y)).replace("{month}", String(m)).replace("{day}", String(d));
 }
 
 function isWindowsDrivePath(p: string): boolean {
   return /^[a-zA-Z]:/.test(p);
 }
 
-function buildBreadcrumbSegments(path: string, platform?: string): { label: string; path: string }[] {
+function buildBreadcrumbSegments(path: string, platform?: string, t?: (key: string) => string): { label: string; path: string }[] {
   const isWinPlatform = platform === "win32" || platform === "windows";
-  if (!path || path === "/") return [{ label: isWinPlatform ? "此电脑" : "/", path: "/" }];
+  const thisPcLabel = t ? t("disk.this_pc") : "This PC";
+  if (!path || path === "/") return [{ label: isWinPlatform ? thisPcLabel : "/", path: "/" }];
   
   const normalized = path.replace(/\\/g, "/");
   const isWin = isWindowsDrivePath(normalized);
@@ -110,7 +114,7 @@ function buildBreadcrumbSegments(path: string, platform?: string): { label: stri
   
   const segs: { label: string; path: string }[] = [];
   if (isWin) {
-    segs.push({ label: "此电脑", path: "/" });
+    segs.push({ label: thisPcLabel, path: "/" });
   } else {
     segs.push({ label: "/", path: "/" });
   }
@@ -145,7 +149,7 @@ function makeRuleFromEntry(entry: FileEntry, groupId: string, platform: string):
     id: crypto.randomUUID(),
     name: entry.name,
     group: groupId,
-    description: entry.isDir ? `目录: ${cleanPath}` : `文件: ${cleanPath}`,
+    description: entry.isDir ? `Directory: ${cleanPath}` : `File: ${cleanPath}`,
     platforms: [targetPlatform as any],
     paths: [cleanPath],
     file_patterns: entry.isDir ? ["*"] : [entry.name],
@@ -161,6 +165,7 @@ function makeRuleFromEntry(entry: FileEntry, groupId: string, platform: string):
 
 export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
   const toast = useToast();
+  const { t } = useI18n();
   const {
     currentPath,
     entries,
@@ -205,10 +210,10 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
       await openPath(entry.path);
     } catch (e) {
       console.error("Failed to open path:", e);
-      alert(`无法打开路径: ${e}`);
+      alert(t("disk.error.open_path_alert").replace("{error}", String(e)));
     }
     setCtxMenu(null);
-  }, []);
+  }, [t]);
 
   // Close context menu on outside click
   useEffect(() => {
@@ -247,16 +252,16 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
       try {
         await onAddRule(rule);
         const group = groups.find((g) => g.id === groupId);
-        const groupName = group ? group.name : "指定分组";
-        toast.success(`成功将 "${entry.name}" 添加到分组规则 "${groupName}" 中！`);
+        const groupName = group ? group.name : t("disk.target_group");
+        toast.success(t("disk.toast.add_rule_success").replace("{name}", entry.name).replace("{group}", groupName));
       } catch (e) {
         console.error("Failed to add to group:", e);
-        toast.error(`添加失败: ${e}`);
+        toast.error(t("disk.error.add_failed").replace("{error}", String(e)));
       }
       setCtxMenu(null);
       setShowGroupSubmenu(false);
     },
-    [onAddRule, platform, groups, toast],
+    [onAddRule, platform, groups, toast, t],
   );
 
   const handleAddToWhitelist = useCallback(async (entry: FileEntry) => {
@@ -268,17 +273,17 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
           global_excludes: [...wl.global_excludes, entry.path],
         };
         await updateWhitelist(updated);
-        toast.success(`已将 "${entry.name}" 成功添加到全局排除白名单中，今后将忽略该路径！`);
+        toast.success(t("whitelist.toast.add_success").replace("{name}", entry.name));
         removeEntryLocally(entry.path);
       } else {
-        toast.info("该路径已存在于全局排除白名单中。");
+        toast.info(t("whitelist.toast.exists"));
       }
     } catch (e) {
       console.error("Failed to add to whitelist:", e);
-      toast.error("添加到白名单失败，请重试");
+      toast.error(t("disk.error.whitelist_failed"));
     }
     setCtxMenu(null);
-  }, [removeEntryLocally, toast]);
+  }, [removeEntryLocally, toast, t]);
 
   const handleRowClick = useCallback(
     (entry: FileEntry) => {
@@ -321,12 +326,12 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
   const parentColors: LevelColor = { bg: "bg-indigo-500", text: "text-indigo-400" };
   const currentColors: LevelColor = { bg: "bg-purple-500", text: "text-purple-400" };
 
-  const breadcrumbs = buildBreadcrumbSegments(currentPath, platform);
+  const breadcrumbs = buildBreadcrumbSegments(currentPath, platform, t);
 
   const sortLabel: Record<SortField, string> = {
-    name: "名称",
-    size: "大小",
-    modified: "修改时间",
+    name: t("disk.table.header.name"),
+    size: t("disk.table.header.size"),
+    modified: t("disk.table.header.modified"),
   };
 
   const SortIndicator = ({ field }: { field: SortField }) => {
@@ -365,7 +370,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-100 flex items-center gap-2">
-          磁盘分析
+          {t("nav.disk")}
           {scanStatus === "scanning" && (
             <IconLoader className="animate-spin text-blue-400" />
           )}
@@ -374,7 +379,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
           onClick={refresh}
           className="px-3 py-1.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-colors flex items-center gap-2"
         >
-          <IconRefresh /> 刷新
+          <IconRefresh /> {t("disk.action.refresh")}
         </button>
       </div>
 
@@ -382,7 +387,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
       {diskUsage && (
         <div className="px-5 py-4 rounded-xl bg-gray-800/60 border border-gray-700/40 space-y-3">
           <div className="flex items-center justify-between text-sm gap-4">
-            <span className="text-gray-300 font-medium shrink-0">磁盘使用情况</span>
+            <span className="text-gray-300 font-medium shrink-0">{t("disk.usage.title")}</span>
             <div className="flex items-center gap-3 text-xs text-gray-400 min-w-0">
               <span className="truncate" title={currentPath}>
                 {currentPath}
@@ -397,7 +402,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
               <div
                 className={`h-full ${parentColors.bg} transition-all duration-500 shrink-0 py-[1.5px] pr-[1.5px] pl-0 overflow-hidden flex items-center`}
                 style={{ width: `${parentPathPct}%` }}
-                title={`上一级目录: ${formatFileSize(parentPathSize)}`}
+                title={`${t("disk.usage.parent_dir").replace("{size}", formatFileSize(parentPathSize))}`}
               >
                 {currentPathSize > 0 && (
                   <div
@@ -407,7 +412,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
                         : currentColors.bg
                     }`}
                     style={{ width: `${Math.min(100, (currentPathSize / safeParentSize) * 100)}%` }}
-                    title={`当前目录: ${formatFileSize(currentPathSize)}`}
+                    title={`${t("disk.usage.current_dir").replace("{size}", formatFileSize(currentPathSize))}`}
                   />
                 )}
               </div>
@@ -420,7 +425,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
                       : currentColors.bg
                   }`}
                   style={{ width: `${currentPathPct}%` }}
-                  title={`当前目录: ${formatFileSize(currentPathSize)}`}
+                  title={`${t("disk.usage.current_dir").replace("{size}", formatFileSize(currentPathSize))}`}
                 />
               )
             )}
@@ -434,21 +439,21 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
           <div className="flex justify-between items-center text-xs text-gray-500 flex-wrap gap-y-2">
             <div className="flex items-center gap-3">
               <span>
-                已用 <span className="text-gray-300">{formatFileSize(diskUsage.used)}</span>
+                {t("disk.usage.used")} <span className="text-gray-300">{formatFileSize(diskUsage.used)}</span>
               </span>
               <span className="flex items-center gap-1.5">
                 <span className={`w-2 h-2 rounded-full ${currentColors.bg} shrink-0 ${
                   scanStatus === "scanning" ? "animate-pulse" : ""
                 }`} />
-                当前目录 <span className={`${currentColors.text} font-medium`}>{formatFileSize(currentPathSize)}</span>
+                {t("disk.usage.current_dir").split(":")[0].trim()} <span className={`${currentColors.text} font-medium`}>{formatFileSize(currentPathSize)}</span>
               </span>
             </div>
             <div className="flex items-center gap-3">
               <span>
-                可用 <span className="text-gray-300">{formatFileSize(diskUsage.available)}</span>
+                {t("disk.usage.available")} <span className="text-gray-300">{formatFileSize(diskUsage.available)}</span>
               </span>
               <span>
-                总计 <span className="text-gray-300">{formatFileSize(diskUsage.total)}</span>
+                {t("disk.usage.total")} <span className="text-gray-300">{formatFileSize(diskUsage.total)}</span>
               </span>
             </div>
           </div>
@@ -462,7 +467,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
           <button
             onClick={navigateUp}
             className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
-            title="返回上级目录"
+            title={t("disk.action.up_dir")}
           >
             <IconArrowUp />
           </button>
@@ -493,29 +498,29 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
           <div className="flex items-center justify-between">
             <span className="font-semibold flex items-center gap-2">
               <IconAlert className="shrink-0 text-red-400" />
-              无法访问此路径
+              {t("disk.error.no_access")}
             </span>
             <button
               onClick={refresh}
               className="px-3 py-1 rounded-lg text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors font-medium"
             >
-              重试
+              {t("disk.action.retry")}
             </button>
           </div>
           <p className="text-xs font-mono bg-red-500/5 p-2 rounded-lg border border-red-500/10 whitespace-pre-wrap">{error}</p>
           {(error.includes("拒绝访问") || error.includes("Access is denied") || error.includes("permission denied") || error.includes("os error 5")) && (
             <div className="pt-3 border-t border-red-500/20 text-xs text-gray-400 space-y-2">
               <p className="font-semibold text-gray-200 flex items-center gap-1.5">
-                <span>💡</span> 为什么部分路径会被拒绝访问？
+                <span>💡</span> {t("disk.error.junction_title")}
               </p>
               <p className="leading-relaxed">
-                在 Windows 系统中，诸如 <code className="px-1 py-0.5 rounded bg-gray-800 text-gray-300 font-mono text-[10px]">Documents and Settings</code> 或 <code className="px-1 py-0.5 rounded bg-gray-800 text-gray-300 font-mono text-[10px]">System Volume Information</code> 等路径属于<b>系统保护的虚拟占位路径（Junction 软链接）</b>或核心系统数据区。
+                {t("disk.error.junction_desc1")}
               </p>
               <p className="leading-relaxed">
-                这些路径是由系统为了与老旧软件保持兼容性而创建的。为了防止无限递归扫描或误删，Windows 默认拒绝任何普通用户和应用对它们的读取访问。这是系统的正常安全机制，您无需为此担心。
+                {t("disk.error.junction_desc2")}
               </p>
               <p className="leading-relaxed font-medium text-gray-300">
-                若需扫描其他受限的常规文件，请尝试<b>以管理员身份运行</b>此程序，或在设置中授予完整的磁盘操作权限。
+                {t("disk.error.junction_desc3")}
               </p>
             </div>
           )}
@@ -532,7 +537,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
       ) : entries.length === 0 && !error && scanStatus !== "scanning" ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <IconFolder className="text-gray-600 mb-4" size={48} />
-          <p className="text-gray-400 text-sm">空目录</p>
+          <p className="text-gray-400 text-sm">{t("disk.table.empty")}</p>
           <p className="text-gray-600 text-xs mt-1">{currentPath}</p>
         </div>
       ) : (
@@ -575,7 +580,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
                   <span className="text-base shrink-0 text-gray-400 relative inline-flex items-center justify-center">
                     {entry.isDir ? <IconFolder /> : <IconFile />}
                     {entry.isSymlink && (
-                      <div className="absolute -bottom-1 -left-1 bg-slate-900/90 text-blue-400 border border-blue-500/50 rounded-[3px] p-[1px] shadow-md flex items-center justify-center" title="快捷方式/软链接">
+                      <div className="absolute -bottom-1 -left-1 bg-slate-900/90 text-blue-400 border border-blue-500/50 rounded-[3px] p-[1px] shadow-md flex items-center justify-center" title={t("disk.table.symlink_tooltip")}>
                         <svg className="w-2 h-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
                           <line x1="7" y1="17" x2="17" y2="7"></line>
                           <polyline points="7 7 17 7 17 17"></polyline>
@@ -590,13 +595,13 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
                     {entry.name}
                   </span>
                   {entry.isWhitelisted && (
-                    <span title="该路径已列入全局白名单" className="flex items-center shrink-0">
+                    <span title={t("disk.table.whitelisted_tip")} className="flex items-center shrink-0">
                       <ShieldCheck size={14} className="text-emerald-400" />
                     </span>
                   )}
                   {entry.isDir && entry.childrenCount !== null && (
                     <span className="text-xs text-gray-600 shrink-0">
-                      {entry.childrenCount} 项
+                      {t("scan.status.items_count").replace("{count}", String(entry.childrenCount))}
                     </span>
                   )}
                 </div>
@@ -604,7 +609,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
                 {/* Size */}
                 <span className="text-right text-gray-400 text-xs">
                   {entry.isDir && entry.calculating ? (
-                    <span className="text-blue-400/80 animate-pulse">计算中...</span>
+                    <span className="text-blue-400/80 animate-pulse">{t("disk.table.calculating")}</span>
                   ) : (
                     formatFileSize(entry.size)
                   )}
@@ -612,7 +617,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
 
                 {/* Modified */}
                 <span className="text-right text-gray-500 text-xs">
-                  {formatRelativeTime(entry.modified)}
+                  {formatRelativeTime(entry.modified, t)}
                 </span>
               </div>
             ))}
@@ -620,7 +625,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
 
           {/* Footer */}
           <div className="px-4 py-2 border-t border-gray-700/30 text-xs text-gray-600 flex justify-between">
-            <span>{entries.length} 项</span>
+            <span>{t("scan.status.items_count").replace("{count}", String(entries.length))}</span>
             <span>{formatFileSize(entries.reduce((s, e) => s + e.size, 0))}</span>
           </div>
         </div>
@@ -642,7 +647,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
               }}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-200 hover:bg-gray-700/60 transition-colors"
             >
-              <IconFolder size={16} /> 打开
+              <IconFolder size={16} /> {t("disk.menu.open")}
             </button>
           )}
 
@@ -652,7 +657,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
             className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-200 hover:bg-gray-700/60 transition-colors"
           >
             <ExternalLink size={16} className="shrink-0 text-gray-400" />
-            {platform === "macos" ? "用访达打开" : "用文件管理器打开"}
+            {platform === "macos" ? t("disk.menu.open_file_manager_macos") : t("disk.menu.open_file_manager_generic")}
           </button>
 
           {/* Add to group rule */}
@@ -662,13 +667,13 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-200 hover:bg-gray-700/60 transition-colors"
             >
               <IconListPlus />
-              添加到分组规则...
+              {t("disk.menu.add_to_group")}
               <IconChevronRightSmall className="ml-auto text-gray-600" />
             </button>
             {showGroupSubmenu && (
               <div className="absolute left-full top-0 ml-1 min-w-[180px] py-1 rounded-lg bg-gray-800 border border-gray-700/60 shadow-xl shadow-black/40 z-50">
                 {groups.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-gray-500">暂无分组</div>
+                  <div className="px-3 py-2 text-xs text-gray-500">{t("disk.menu.no_groups")}</div>
                 ) : (
                   groups.map((g) => (
                     <button
@@ -693,7 +698,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
             onClick={() => handleAddToWhitelist(ctxMenu.entry)}
             className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-emerald-400 hover:bg-emerald-500/10 transition-colors"
           >
-            <ShieldCheck size={16} className="shrink-0" /> 添加到全局白名单
+            <ShieldCheck size={16} className="shrink-0" /> {t("disk.menu.add_to_whitelist")}
           </button>
 
           {/* Copy path */}
@@ -701,7 +706,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
             onClick={() => handleCopyPath(ctxMenu.entry)}
             className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-200 hover:bg-gray-700/60 transition-colors"
           >
-            <IconClipboard /> 复制路径
+            <IconClipboard /> {t("disk.menu.copy_path")}
           </button>
 
           {/* Delete */}
@@ -713,7 +718,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
             }}
             className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
           >
-            <IconTrash size={16} /> 删除
+            <IconTrash size={16} /> {t("disk.menu.delete_label")}
           </button>
         </div>
       )}
@@ -723,23 +728,23 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="w-full max-w-sm mx-4 p-5 rounded-xl bg-gray-800 border border-gray-700/60 shadow-2xl">
             <h3 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
-              <IconAlert className="text-yellow-500" /> 确认删除
+              <IconAlert className="text-yellow-500" /> {t("disk.confirm.delete_title")}
             </h3>
-            <p className="text-sm text-gray-400 mb-1">确定要删除以下路径吗？</p>
+            <p className="text-sm text-gray-400 mb-1">{t("disk.confirm.delete_message")}</p>
             <p className="text-sm text-gray-200 bg-gray-900/60 rounded px-3 py-2 mb-3 break-all font-mono text-xs">
               {deleteTarget.path}
             </p>
             <p className="text-xs text-red-400/80 mb-4">
               {deleteTarget.isDir
-                ? "此操作将删除该目录及其所有内容，且不可撤销。"
-                : "此操作不可撤销。"}
+                ? t("disk.confirm.delete_dir_warning")
+                : t("disk.confirm.delete_file_warning")}
             </p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setDeleteTarget(null)}
                 className="px-4 py-1.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
               >
-                取消
+                {t("modal.cancel")}
               </button>
               <button
                 onClick={async () => {
@@ -750,14 +755,14 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
                         refresh();
                       }
                     } catch (e) {
-                      alert(`删除失败: ${e}`);
+                      alert(t("disk.error.delete_alert").replace("{error}", String(e)));
                     }
                   }
                   setDeleteTarget(null);
                 }}
                 className="px-4 py-1.5 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-500 transition-colors"
               >
-                确认删除
+                {t("modal.confirm")}
               </button>
             </div>
           </div>
