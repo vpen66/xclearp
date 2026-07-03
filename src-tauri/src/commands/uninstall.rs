@@ -50,13 +50,10 @@ pub async fn get_icon_data_urls(paths: Vec<String>) -> Result<HashMap<String, St
     for path_str in &paths {
         let path = std::path::PathBuf::from(path_str);
         if path.exists() {
-            match tokio::task::spawn_blocking(move || std::fs::read(&path)).await {
-                Ok(Ok(data)) => {
-                    use base64::Engine;
-                    let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
-                    result.insert(path_str.clone(), format!("data:image/png;base64,{}", b64));
-                }
-                _ => {}
+            if let Ok(Ok(data)) = tokio::task::spawn_blocking(move || std::fs::read(&path)).await {
+                use base64::Engine;
+                let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
+                result.insert(path_str.clone(), format!("data:image/png;base64,{}", b64));
             }
         }
     }
