@@ -357,7 +357,7 @@ fn estimate_registry_key_size_limited(parent: &RegKey, subkey_name: &str, max_de
     let mut total: u64 = 0;
     if let Ok(key) = parent.open_subkey(subkey_name) {
         if let Ok(info) = key.query_info() {
-            total += info.values_count as u64 * 64;
+            total += info.values as u64 * 64;
         }
         let mut sub_count: u32 = 0;
         for sub_name in key.enum_keys().flatten() {
