@@ -14,6 +14,7 @@ use crate::core::uninstall::{AppFileGroup, InstalledApp};
 pub struct MacOSProvider;
 
 impl MacOSProvider {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self
     }
