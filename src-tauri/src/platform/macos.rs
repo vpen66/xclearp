@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
@@ -16,6 +14,7 @@ use crate::core::uninstall::{AppFileGroup, InstalledApp};
 pub struct MacOSProvider;
 
 impl MacOSProvider {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self
     }
