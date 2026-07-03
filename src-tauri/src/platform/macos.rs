@@ -1,14 +1,20 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Instant;
 
 use super::common;
 use super::{PermissionStatus, PlatformError, PlatformProvider};
+use crate::core::event_bus::UninstallEventBus;
+use crate::core::events::UninstallEvent;
 use crate::core::rules::CleanRule;
-use crate::core::uninstall::InstalledApp;
+use crate::core::uninstall::app_scanner::{macos_residual_paths, scan_paths_to_groups};
+use crate::core::uninstall::{AppFileGroup, InstalledApp};
 
 /// macOS-specific platform provider.
 pub struct MacOSProvider;
 
 impl MacOSProvider {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self
     }
@@ -244,6 +250,11 @@ impl PlatformProvider for MacOSProvider {
                     app_path: path.to_string_lossy().to_string(),
                     icon_path,
                     app_size,
+                    uninstall_string: None,
+                    install_location: None,
+                    publisher: None,
+                    package_manager: None,
+                    package_name: None,
                 });
             }
         }
@@ -251,6 +262,32 @@ impl PlatformProvider for MacOSProvider {
         // Sort by name
         apps.sort_by_key(|a| a.name.to_lowercase());
         apps
+    }
+
+    fn scan_app_residuals(
+        &self,
+        app: &InstalledApp,
+        event_bus: &Arc<UninstallEventBus>,
+        op_id: &str,
+    ) -> Vec<AppFileGroup> {
+        let _ = event_bus.emit(UninstallEvent::AppScanStarted {
+            op_id: op_id.to_string(),
+            app_name: app.name.clone(),
+        });
+        let start = Instant::now();
+        let category_paths = macos_residual_paths(app);
+        scan_paths_to_groups(category_paths, event_bus, op_id, start)
+    }
+
+    fn uninstall_app_native(&self, _app: &InstalledApp) -> Result<(), PlatformError> {
+        Err(PlatformError {
+            message: "macOS does not support official uninstaller invocation".into(),
+            path: None,
+        })
+    }
+
+    fn supports_official_uninstall(&self, _app: &InstalledApp) -> bool {
+        false
     }
 }
 

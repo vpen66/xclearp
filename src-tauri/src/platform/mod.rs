@@ -4,9 +4,11 @@ pub mod macos;
 pub mod windows;
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
+use crate::core::event_bus::UninstallEventBus;
 use crate::core::rules::CleanRule;
-use crate::core::uninstall::InstalledApp;
+use crate::core::uninstall::{AppFileGroup, InstalledApp};
 
 /// Error type for platform-specific operations.
 #[derive(Debug, Clone)]
@@ -74,18 +76,35 @@ pub trait PlatformProvider: Send + Sync {
 
     /// List all installed applications on this platform.
     fn list_installed_apps(&self) -> Vec<InstalledApp>;
+
+    /// Scan residual files for a given installed application.
+    fn scan_app_residuals(
+        &self,
+        app: &InstalledApp,
+        event_bus: &Arc<UninstallEventBus>,
+        op_id: &str,
+    ) -> Vec<AppFileGroup>;
+
+    /// Invoke the platform-native uninstall mechanism (e.g. UninstallString on Windows,
+    /// package manager on Linux). Returns Err on platforms that do not support it.
+    fn uninstall_app_native(&self, app: &InstalledApp) -> Result<(), PlatformError>;
+
+    /// Whether the given app has an official uninstaller available.
+    fn supports_official_uninstall(&self, app: &InstalledApp) -> bool;
 }
 
 /// Factory function to create the appropriate platform provider.
+#[cfg(target_os = "macos")]
 pub fn create_platform_provider() -> Box<dyn PlatformProvider + Send + Sync> {
-    if cfg!(target_os = "macos") {
-        Box::new(macos::MacOSProvider::new())
-    } else if cfg!(target_os = "windows") {
-        Box::new(windows::WindowsProvider::new())
-    } else if cfg!(target_os = "linux") {
-        Box::new(linux::LinuxProvider::new())
-    } else {
-        // Fallback to Linux implementation
-        Box::new(linux::LinuxProvider::new())
-    }
+    Box::new(macos::MacOSProvider::new())
+}
+
+#[cfg(target_os = "windows")]
+pub fn create_platform_provider() -> Box<dyn PlatformProvider + Send + Sync> {
+    Box::new(windows::WindowsProvider::new())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+pub fn create_platform_provider() -> Box<dyn PlatformProvider + Send + Sync> {
+    Box::new(linux::LinuxProvider::new())
 }

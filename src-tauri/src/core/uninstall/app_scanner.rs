@@ -9,25 +9,12 @@ use super::{AppFileCategory, AppFileEntry, AppFileGroup, InstalledApp};
 use crate::core::event_bus::UninstallEventBus;
 use crate::core::events::UninstallEvent;
 
-/// Scan residual files for a given installed application.
-/// Returns a vector of `AppFileGroup`, one per category.
-pub fn scan_app_residuals(
-    app: &InstalledApp,
-    event_bus: &Arc<UninstallEventBus>,
-    op_id: &str,
-) -> Vec<AppFileGroup> {
-    let start = Instant::now();
-
-    let _ = event_bus.emit(UninstallEvent::AppScanStarted {
-        op_id: op_id.to_string(),
-        app_name: app.name.clone(),
-    });
-
+/// Build the macOS-specific category -> paths mapping for residual scanning.
+pub fn macos_residual_paths(app: &InstalledApp) -> HashMap<AppFileCategory, Vec<PathBuf>> {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/Users/unknown"));
     let bundle_id = &app.bundle_id;
     let name = &app.name;
 
-    // Build category -> paths mapping
     let mut category_paths: HashMap<AppFileCategory, Vec<PathBuf>> = HashMap::new();
 
     let mut add = |cat: AppFileCategory, p: PathBuf| {
@@ -39,7 +26,6 @@ pub fn scan_app_residuals(
         AppFileCategory::ApplicationSupport,
         home.join(format!("Library/Application Support/{}", name)),
     );
-    // Also try with bundle_id
     if !bundle_id.is_empty() {
         add(
             AppFileCategory::ApplicationSupport,
@@ -133,7 +119,18 @@ pub fn scan_app_residuals(
         &mut |p| add(AppFileCategory::LaunchDaemons, p),
     );
 
-    // Scan each category and build file groups
+    category_paths
+}
+
+/// Generic utility: scan a set of category-keyed paths and build file groups.
+/// Emits progress events via the event bus. Used by all platform implementations.
+/// `start` is the Instant when the overall scan began (for duration reporting).
+pub fn scan_paths_to_groups(
+    category_paths: HashMap<AppFileCategory, Vec<PathBuf>>,
+    event_bus: &Arc<UninstallEventBus>,
+    op_id: &str,
+    start: Instant,
+) -> Vec<AppFileGroup> {
     let mut groups: Vec<AppFileGroup> = Vec::new();
     let mut scanned_paths: u64 = 0;
     let mut total_files: u64 = 0;
@@ -149,7 +146,6 @@ pub fn scan_app_residuals(
             }
 
             if path.is_file() {
-                // Single file (e.g. plist)
                 let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
                 files.push(AppFileEntry {
                     path: path.to_string_lossy().to_string(),
@@ -158,7 +154,6 @@ pub fn scan_app_residuals(
                 });
                 group_size += size;
             } else if path.is_dir() {
-                // Directory: walk and collect all files
                 for entry in WalkDir::new(path).follow_links(false).into_iter() {
                     let entry = match entry {
                         Ok(e) => e,
@@ -176,7 +171,7 @@ pub fn scan_app_residuals(
                     });
                     group_size += size;
                 }
-                // Also add the directory root itself so we can delete the whole dir
+                // Add the directory root itself so we can delete the whole dir
                 files.insert(
                     0,
                     AppFileEntry {
@@ -241,7 +236,6 @@ fn scan_launch_items<F: FnMut(PathBuf)>(dir: &Path, bundle_id: &str, mut add: F)
         for entry in entries.flatten() {
             let path = entry.path();
             if path.extension().and_then(|e| e.to_str()) == Some("plist") {
-                // Check if the plist file name or content references the bundle_id
                 let file_name = path
                     .file_stem()
                     .and_then(|s| s.to_str())

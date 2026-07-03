@@ -5,8 +5,8 @@ use tokio::sync::Mutex as TokioMutex;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use super::app_scanner;
 use super::InstalledApp;
+use super::UninstallMode;
 use crate::core::event_bus::UninstallEventBus;
 use crate::core::events::UninstallEvent;
 use crate::platform::PlatformProvider;
@@ -77,10 +77,11 @@ impl UninstallEngine {
     pub async fn scan_app(&self, app: InstalledApp) -> Result<Vec<super::AppFileGroup>, String> {
         let op_id = Uuid::new_v4().to_string();
         let event_bus = Arc::clone(&self.event_bus);
+        let platform = Arc::clone(&self.platform);
 
         // scan_app_residuals is synchronous I/O, run on blocking thread
         let groups = tokio::task::spawn_blocking(move || {
-            app_scanner::scan_app_residuals(&app, &event_bus, &op_id)
+            platform.scan_app_residuals(&app, &event_bus, &op_id)
         })
         .await
         .map_err(|e| format!("Task join error: {}", e))?;
@@ -88,12 +89,12 @@ impl UninstallEngine {
         Ok(groups)
     }
 
-    /// Uninstall an application: move the .app to trash, then optionally delete residual paths.
-    /// `app_path`: the .app bundle path (will be moved to trash)
-    /// `residual_paths`: optional list of residual file paths to delete (empty = only uninstall app)
+    /// Uninstall an application with the specified mode.
+    /// Returns the operation ID for event tracking.
     pub fn uninstall_app(
         &self,
-        app_path: String,
+        app: InstalledApp,
+        mode: UninstallMode,
         residual_paths: Vec<String>,
     ) -> Result<String, String> {
         let op_id = Uuid::new_v4().to_string();
@@ -109,55 +110,127 @@ impl UninstallEngine {
             let mut total_deleted: u64 = 0;
             let mut total_freed: u64 = 0;
 
-            // Step 1: Move the .app bundle to trash
-            let _ = event_bus.emit(UninstallEvent::AppMoveStarted {
-                op_id: op_id_clone.clone(),
-                app_path: app_path.clone(),
-            });
+            // Handle different uninstall modes
+            match mode {
+                UninstallMode::OfficialUninstaller => {
+                    // Step 1: Execute the official uninstaller
+                    let _ = event_bus.emit(UninstallEvent::OfficialUninstallerStarted {
+                        op_id: op_id_clone.clone(),
+                        command: app
+                            .uninstall_string
+                            .clone()
+                            .or_else(|| app.package_manager.clone())
+                            .unwrap_or_default(),
+                    });
 
-            let app_path_buf = std::path::PathBuf::from(&app_path);
-            if app_path_buf.exists() {
-                let app_size = crate::platform::common::get_file_size(&app_path_buf);
-                let move_result = tokio::task::spawn_blocking({
-                    let app_path_buf = app_path_buf.clone();
-                    let platform_for_move = Arc::clone(&platform);
-                    move || platform_for_move.move_to_trash(&app_path_buf)
-                })
-                .await;
+                    let uninstall_start = Instant::now();
+                    let uninstall_result = tokio::task::spawn_blocking({
+                        let platform = Arc::clone(&platform);
+                        let app = app.clone();
+                        move || platform.uninstall_app_native(&app)
+                    })
+                    .await;
 
-                match move_result {
-                    Ok(Ok(())) => {
-                        total_deleted += 1;
-                        total_freed += app_size;
+                    let exit_code = match &uninstall_result {
+                        Ok(Ok(())) => 0,
+                        Ok(Err(e)) => {
+                            let _ = event_bus.emit(UninstallEvent::OfficialUninstallerCompleted {
+                                op_id: op_id_clone.clone(),
+                                exit_code: -1,
+                                duration_ms: uninstall_start.elapsed().as_millis() as u64,
+                            });
+                            let _ = event_bus.emit(UninstallEvent::UninstallError {
+                                op_id: op_id_clone.clone(),
+                                message: format!("Official uninstaller failed: {}", e.message),
+                                recoverable: true,
+                            });
+                            -1
+                        }
+                        Err(e) => {
+                            let _ = event_bus.emit(UninstallEvent::UninstallError {
+                                op_id: op_id_clone.clone(),
+                                message: format!("Task error: {}", e),
+                                recoverable: false,
+                            });
+                            let _ = event_bus.emit(UninstallEvent::UninstallCancelled {
+                                op_id: op_id_clone.clone(),
+                            });
+                            op_registry.unregister(&op_id_clone).await;
+                            return;
+                        }
+                    };
+
+                    let _ = event_bus.emit(UninstallEvent::OfficialUninstallerCompleted {
+                        op_id: op_id_clone.clone(),
+                        exit_code,
+                        duration_ms: uninstall_start.elapsed().as_millis() as u64,
+                    });
+
+                    // Step 2: Scan residuals after official uninstall
+                    let _ = event_bus.emit(UninstallEvent::ResidualScanStarted {
+                        op_id: op_id_clone.clone(),
+                    });
+
+                    // Note: residual_paths already provided by the user from a prior scan
+                    // We proceed directly to deleting the selected residuals
+                }
+
+                UninstallMode::TrashOnly => {
+                    // Move the .app bundle to trash
+                    let _ = event_bus.emit(UninstallEvent::AppMoveStarted {
+                        op_id: op_id_clone.clone(),
+                        app_path: app.app_path.clone(),
+                    });
+
+                    let app_path_buf = std::path::PathBuf::from(&app.app_path);
+                    if app_path_buf.exists() {
+                        let app_size = crate::platform::common::get_file_size(&app_path_buf);
+                        let move_result = tokio::task::spawn_blocking({
+                            let app_path_buf = app_path_buf.clone();
+                            let platform_for_move = Arc::clone(&platform);
+                            move || platform_for_move.move_to_trash(&app_path_buf)
+                        })
+                        .await;
+
+                        match move_result {
+                            Ok(Ok(())) => {
+                                total_deleted += 1;
+                                total_freed += app_size;
+                            }
+                            Ok(Err(e)) => {
+                                let _ = event_bus.emit(UninstallEvent::UninstallError {
+                                    op_id: op_id_clone.clone(),
+                                    message: format!("Failed to move app to trash: {}", e.message),
+                                    recoverable: false,
+                                });
+                                let _ = event_bus.emit(UninstallEvent::UninstallCancelled {
+                                    op_id: op_id_clone.clone(),
+                                });
+                                op_registry.unregister(&op_id_clone).await;
+                                return;
+                            }
+                            Err(e) => {
+                                let _ = event_bus.emit(UninstallEvent::UninstallError {
+                                    op_id: op_id_clone.clone(),
+                                    message: format!("Task error moving app: {}", e),
+                                    recoverable: false,
+                                });
+                                let _ = event_bus.emit(UninstallEvent::UninstallCancelled {
+                                    op_id: op_id_clone.clone(),
+                                });
+                                op_registry.unregister(&op_id_clone).await;
+                                return;
+                            }
+                        }
                     }
-                    Ok(Err(e)) => {
-                        let _ = event_bus.emit(UninstallEvent::UninstallError {
-                            op_id: op_id_clone.clone(),
-                            message: format!("Failed to move app to trash: {}", e.message),
-                            recoverable: false,
-                        });
-                        let _ = event_bus.emit(UninstallEvent::UninstallCancelled {
-                            op_id: op_id_clone.clone(),
-                        });
-                        op_registry.unregister(&op_id_clone).await;
-                        return;
-                    }
-                    Err(e) => {
-                        let _ = event_bus.emit(UninstallEvent::UninstallError {
-                            op_id: op_id_clone.clone(),
-                            message: format!("Task error moving app: {}", e),
-                            recoverable: false,
-                        });
-                        let _ = event_bus.emit(UninstallEvent::UninstallCancelled {
-                            op_id: op_id_clone.clone(),
-                        });
-                        op_registry.unregister(&op_id_clone).await;
-                        return;
-                    }
+                }
+
+                UninstallMode::ResidualOnly => {
+                    // Skip app removal, only delete residuals
                 }
             }
 
-            // Step 2: Delete residual paths (if any)
+            // Delete residual paths (if any)
             for path_str in &residual_paths {
                 if cancel_token.is_cancelled() {
                     let _ = event_bus.emit(UninstallEvent::UninstallCancelled {

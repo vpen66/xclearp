@@ -12,8 +12,10 @@ import type {
   InstalledApp,
   AppFileGroup,
   UninstallPhase,
+  UninstallMode,
   UninstallDeleteProgress,
   UninstallSummary,
+  OfficialUninstallerPhase,
 } from "../types/uninstall";
 
 export interface UseUninstallStreamReturn {
@@ -25,11 +27,16 @@ export interface UseUninstallStreamReturn {
   isScanning: boolean;
   deleteProgress: UninstallDeleteProgress | null;
   uninstallSummary: UninstallSummary | null;
+  officialUninstallerPhase: OfficialUninstallerPhase;
   error: string | null;
   loadApps: () => Promise<void>;
   refreshApps: () => Promise<void>;
   selectAndScan: (app: InstalledApp) => Promise<void>;
-  startUninstall: (appPath: string, residualPaths: string[]) => Promise<void>;
+  startUninstall: (
+    app: InstalledApp,
+    mode: UninstallMode,
+    residualPaths: string[],
+  ) => Promise<void>;
   cancelOperation: () => Promise<void>;
   resetToSelect: () => void;
   goBackToSelect: () => void;
@@ -47,6 +54,8 @@ export function useUninstallStream(): UseUninstallStreamReturn {
     useState<UninstallDeleteProgress | null>(null);
   const [uninstallSummary, setUninstallSummary] =
     useState<UninstallSummary | null>(null);
+  const [officialUninstallerPhase, setOfficialUninstallerPhase] =
+    useState<OfficialUninstallerPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const opIdRef = useRef<string | null>(null);
   const appsLoadedRef = useRef(false);
@@ -61,6 +70,18 @@ export function useUninstallStream(): UseUninstallStreamReturn {
       if (opIdRef.current && evt.op_id !== opIdRef.current) return;
 
       switch (evt.type) {
+        case "official_uninstaller_started":
+          setOfficialUninstallerPhase("running");
+          break;
+
+        case "official_uninstaller_completed":
+          setOfficialUninstallerPhase("completed");
+          break;
+
+        case "residual_scan_started":
+          setOfficialUninstallerPhase("scanning_residuals");
+          break;
+
         case "delete_progress":
           setDeleteProgress({
             deletedFiles: (evt.deleted_files as number) ?? 0,
@@ -77,6 +98,7 @@ export function useUninstallStream(): UseUninstallStreamReturn {
           });
           setPhase("done");
           opIdRef.current = null;
+          setOfficialUninstallerPhase("idle");
           // Refresh app list after uninstall
           refreshApps();
           break;
@@ -88,6 +110,7 @@ export function useUninstallStream(): UseUninstallStreamReturn {
         case "uninstall_cancelled":
           setPhase("review");
           opIdRef.current = null;
+          setOfficialUninstallerPhase("idle");
           break;
       }
     }).then((fn) => {
@@ -105,7 +128,6 @@ export function useUninstallStream(): UseUninstallStreamReturn {
   }, []);
 
   const loadApps = useCallback(async () => {
-    // Skip if already loaded (use cache)
     if (appsLoadedRef.current) return;
     appsLoadedRef.current = true;
     setAppsLoading(true);
@@ -142,7 +164,6 @@ export function useUninstallStream(): UseUninstallStreamReturn {
     setError(null);
     setPhase("scanning");
     setIsScanning(true);
-    // Defer IPC call to next tick so React renders "scanning" UI first
     await new Promise((r) => setTimeout(r, 0));
     try {
       const groups = await ipcScanApp(app);
@@ -156,19 +177,30 @@ export function useUninstallStream(): UseUninstallStreamReturn {
     }
   }, []);
 
-  const startUninstall = useCallback(async (appPath: string, residualPaths: string[]) => {
-    setPhase("uninstalling");
-    setError(null);
-    setDeleteProgress(null);
-    opIdRef.current = null;
-    try {
-      const { op_id } = await ipcUninstallApp(appPath, residualPaths);
-      opIdRef.current = op_id;
-    } catch (err) {
-      setError(String(err));
-      setPhase("review");
-    }
-  }, []);
+  const startUninstall = useCallback(
+    async (
+      app: InstalledApp,
+      mode: UninstallMode,
+      residualPaths: string[],
+    ) => {
+      setPhase("uninstalling");
+      setError(null);
+      setDeleteProgress(null);
+      setOfficialUninstallerPhase(
+        mode === "official_uninstaller" ? "running" : "idle",
+      );
+      opIdRef.current = null;
+      try {
+        const { op_id } = await ipcUninstallApp(app, mode, residualPaths);
+        opIdRef.current = op_id;
+      } catch (err) {
+        setError(String(err));
+        setPhase("review");
+        setOfficialUninstallerPhase("idle");
+      }
+    },
+    [],
+  );
 
   const cancelOperation = useCallback(async () => {
     if (opIdRef.current) {
@@ -187,6 +219,7 @@ export function useUninstallStream(): UseUninstallStreamReturn {
     setDeleteProgress(null);
     setUninstallSummary(null);
     setError(null);
+    setOfficialUninstallerPhase("idle");
     opIdRef.current = null;
   }, []);
 
@@ -206,6 +239,7 @@ export function useUninstallStream(): UseUninstallStreamReturn {
     isScanning,
     deleteProgress,
     uninstallSummary,
+    officialUninstallerPhase,
     error,
     loadApps,
     refreshApps,

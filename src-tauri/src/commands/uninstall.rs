@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use tauri::{command, State};
 
 use crate::core::uninstall::engine::UninstallEngine;
-use crate::core::uninstall::{AppFileGroup, InstalledApp};
+use crate::core::uninstall::{AppFileGroup, InstalledApp, UninstallMode};
 
 /// List all installed applications on the current platform.
 #[command]
@@ -21,15 +21,21 @@ pub async fn scan_app(
     engine.scan_app(app).await
 }
 
-/// Uninstall an application: move to trash and optionally delete residual files.
+/// Uninstall an application with the specified mode.
 /// Returns the operation ID for event tracking.
 #[command]
 pub async fn uninstall_app(
     engine: State<'_, UninstallEngine>,
-    app_path: String,
+    app: InstalledApp,
+    mode: String,
     residual_paths: Vec<String>,
 ) -> Result<serde_json::Value, String> {
-    let op_id = engine.uninstall_app(app_path, residual_paths)?;
+    let uninstall_mode = match mode.as_str() {
+        "official_uninstaller" => UninstallMode::OfficialUninstaller,
+        "residual_only" => UninstallMode::ResidualOnly,
+        _ => UninstallMode::TrashOnly,
+    };
+    let op_id = engine.uninstall_app(app, uninstall_mode, residual_paths)?;
     Ok(serde_json::json!({ "op_id": op_id }))
 }
 

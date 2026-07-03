@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { NdjsonEnvelope, ScanTarget, RuleGroup, CleanRule, FileEntry, DiskUsage } from "../types/index";
 import type { DiskEvent } from "../types/disk";
-import type { InstalledApp, UninstallEvent, AppFileGroup } from "../types/uninstall";
+import type { InstalledApp, UninstallEvent, UninstallMode, AppFileGroup } from "../types/uninstall";
 
 /** Start a scan with the given rule IDs. Returns the operation ID. */
 export async function startScan(ruleIds: string[]): Promise<{ op_id: string }> {
@@ -189,13 +189,15 @@ export async function scanApp(app: InstalledApp): Promise<AppFileGroup[]> {
   return invoke<AppFileGroup[]>("scan_app", { app });
 }
 
-/** Uninstall/delete selected residual paths. */
+/** Uninstall an application with the specified mode. */
 export async function uninstallApp(
-  appPath: string,
+  app: InstalledApp,
+  mode: UninstallMode,
   residualPaths: string[],
 ): Promise<{ op_id: string }> {
   return invoke<{ op_id: string }>("uninstall_app", {
-    appPath,
+    app,
+    mode,
     residualPaths,
   });
 }

@@ -98,6 +98,7 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
     isScanning,
     deleteProgress,
     uninstallSummary,
+    officialUninstallerPhase,
     error,
     loadApps,
     refreshApps,
@@ -170,7 +171,9 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
     return apps.filter(
       (a) =>
         a.name.toLowerCase().includes(q) ||
-        a.bundleId.toLowerCase().includes(q),
+        a.bundleId.toLowerCase().includes(q) ||
+        (a.publisher && a.publisher.toLowerCase().includes(q)) ||
+        (a.packageName && a.packageName.toLowerCase().includes(q)),
     );
   }, [apps, searchQuery]);
 
@@ -195,6 +198,11 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
     }
     return total;
   }, [fileGroups, selectedCategories]);
+
+  // Whether the selected app has an official uninstaller
+  const hasOfficialUninstaller = useMemo(() => {
+    return !!(selectedApp?.uninstallString || selectedApp?.packageManager);
+  }, [selectedApp]);
 
   const toggleCategory = (cat: string) => {
     setSelectedCategories((prev) => {
@@ -531,7 +539,7 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
                   onClick={() => {
                     setShowConfirm(false);
                     if (selectedApp) {
-                      startUninstall(selectedApp.appPath, []);
+                      startUninstall(selectedApp, "trash_only", []);
                     }
                   }}
                   className="w-full px-4 py-2.5 rounded-lg text-sm font-medium text-gray-200 bg-gray-800 hover:bg-gray-700 transition-colors"
@@ -542,7 +550,7 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
                   onClick={() => {
                     setShowConfirm(false);
                     if (selectedApp) {
-                      startUninstall(selectedApp.appPath, selectedPaths);
+                      startUninstall(selectedApp, "trash_only", selectedPaths);
                     }
                   }}
                   disabled={selectedPaths.length === 0}
@@ -550,6 +558,19 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
                 >
                   卸载并删除选中数据
                 </button>
+                {hasOfficialUninstaller && (
+                  <button
+                    onClick={() => {
+                      setShowConfirm(false);
+                      if (selectedApp) {
+                        startUninstall(selectedApp, "official_uninstaller", selectedPaths);
+                      }
+                    }}
+                    className="w-full px-4 py-2.5 rounded-lg text-sm font-medium bg-orange-600 text-white hover:bg-orange-500 transition-colors"
+                  >
+                    官方卸载 + 清理残余
+                  </button>
+                )}
                 <button
                   onClick={() => setShowConfirm(false)}
                   className="w-full px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors"
@@ -575,7 +596,13 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
         <div className="flex flex-col items-center justify-center py-12">
           <IconLoader className="animate-spin text-blue-400 w-8 h-8" />
           <p className="mt-4 text-gray-300 text-sm">
-            正在删除残余文件...
+            {officialUninstallerPhase === "running"
+              ? "正在执行官方卸载程序..."
+              : officialUninstallerPhase === "completed"
+                ? "官方卸载已完成，正在清理残余文件..."
+                : officialUninstallerPhase === "scanning_residuals"
+                  ? "正在扫描残余文件..."
+                  : "正在删除残余文件..."}
           </p>
           {progress && (
             <div className="mt-2 text-xs text-gray-500">

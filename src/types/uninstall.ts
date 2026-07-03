@@ -8,6 +8,11 @@ export interface InstalledApp {
   appPath: string;
   iconPath?: string;
   appSize: number;
+  uninstallString?: string;
+  installLocation?: string;
+  publisher?: string;
+  packageManager?: string;
+  packageName?: string;
 }
 
 /** A single residual file entry */
@@ -34,6 +39,16 @@ export type UninstallPhase =
   | "review"
   | "uninstalling"
   | "done";
+
+/** Uninstall mode for the confirmation dialog */
+export type UninstallMode = "trash_only" | "official_uninstaller" | "residual_only";
+
+/** Official uninstaller phase during the uninstalling step */
+export type OfficialUninstallerPhase =
+  | "idle"
+  | "running"
+  | "completed"
+  | "scanning_residuals";
 
 /** Uninstall event from backend */
 export interface UninstallEvent {
