@@ -43,12 +43,14 @@ impl Cleaner {
     }
 
     /// Clean the given scan targets, returning a summary.
+    /// When `safe_mode` is true, files are moved to trash instead of being permanently deleted.
     pub async fn clean_targets(
         &self,
         targets: &[ScanTarget],
         platform: &dyn PlatformProvider,
         op_id: &str,
         cancel_token: CancellationToken,
+        safe_mode: bool,
     ) -> Result<CleanSummary, CleanError> {
         let start = Instant::now();
         let mut total_deleted: u64 = 0;
@@ -74,8 +76,19 @@ impl Cleaner {
             // Use spawn_blocking per file to avoid blocking the async runtime
             // while keeping the non-Send platform reference on the async task
             let path = target.path.clone();
+            let use_safe_mode = safe_mode;
             let remove_result = tokio::task::spawn_blocking(move || {
-                if path.is_dir() {
+                if use_safe_mode {
+                    // In safe mode, move to trash instead of permanent delete
+                    if path.is_dir() {
+                        // For directories, move each entry to trash recursively
+                        // Use platform move_to_trash for the whole path
+                        // We handle this outside spawn_blocking via platform
+                        Err("use_platform_trash".to_string())
+                    } else {
+                        Err("use_platform_trash".to_string())
+                    }
+                } else if path.is_dir() {
                     std::fs::remove_dir_all(&path).map_err(|e| e.to_string())
                 } else {
                     std::fs::remove_file(&path).map_err(|e| e.to_string())
@@ -94,6 +107,35 @@ impl Cleaner {
                         freed_bytes: total_freed,
                         current_path: target.path.to_string_lossy().to_string(),
                     });
+                }
+                Ok(Err(e)) if e == "use_platform_trash" => {
+                    // Safe mode: use platform move_to_trash
+                    match platform.move_to_trash(&target.path) {
+                        Ok(()) => {
+                            total_deleted += 1;
+                            total_freed += file_size;
+
+                            let _ = self.event_bus.emit(CleanEvent::CleanProgress {
+                                op_id: op_id.to_string(),
+                                deleted_files: total_deleted,
+                                freed_bytes: total_freed,
+                                current_path: target.path.to_string_lossy().to_string(),
+                            });
+                        }
+                        Err(pe) => {
+                            let error_msg = format!(
+                                "Failed to move to trash {}: {}",
+                                target.path.display(),
+                                pe
+                            );
+                            let _ = self.event_bus.emit(CleanEvent::Error {
+                                op_id: op_id.to_string(),
+                                message: error_msg.clone(),
+                                recoverable: true,
+                            });
+                            errors.push(error_msg);
+                        }
+                    }
                 }
                 Ok(Err(e)) => {
                     // Try platform-specific safe_remove as fallback

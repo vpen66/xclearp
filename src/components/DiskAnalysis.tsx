@@ -47,6 +47,18 @@ interface DiskAnalysisProps {
   onAddRule: (rule: CleanRule) => void | Promise<void>;
 }
 
+/** Helper: read safeMode from localStorage settings, default to true */
+function getSafeMode(): boolean {
+  try {
+    const saved = localStorage.getItem("xclearp_settings");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.safeMode !== false; // default true if not set
+    }
+  } catch (e) {}
+  return true;
+}
+
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -491,7 +503,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
 
     for (const p of pathsToDelete) {
       try {
-        await deletePath(p);
+        await deletePath(p, getSafeMode());
         successCount++;
       } catch (e) {
         console.error("Failed to delete:", p, e);
@@ -1166,7 +1178,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
                 onClick={async () => {
                   if (deleteTarget) {
                     try {
-                      const success = await deletePath(deleteTarget.path);
+                      const success = await deletePath(deleteTarget.path, getSafeMode());
                       if (success) {
                         refresh();
                       }

@@ -135,7 +135,8 @@ impl CleanEngine {
     }
 
     /// Execute a clean operation in the background. Returns the op_id immediately.
-    pub fn start_clean(&self, targets: Vec<ScanTarget>) -> Result<String, EngineError> {
+    /// When `safe_mode` is true, files are moved to trash instead of being permanently deleted.
+    pub fn start_clean(&self, targets: Vec<ScanTarget>, safe_mode: bool) -> Result<String, EngineError> {
         let op_id = Uuid::new_v4().to_string();
         let cleaner = Arc::clone(&self.cleaner);
         let platform = Arc::clone(&self.platform);
@@ -146,7 +147,7 @@ impl CleanEngine {
         tauri::async_runtime::spawn(async move {
             let cancel_token = op_registry.register(&op_id_clone).await;
             let _result = cleaner
-                .clean_targets(&targets, platform.as_ref(), &op_id_clone, cancel_token)
+                .clean_targets(&targets, platform.as_ref(), &op_id_clone, cancel_token, safe_mode)
                 .await;
             op_registry.unregister(&op_id_clone).await;
         });

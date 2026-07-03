@@ -91,11 +91,13 @@ impl UninstallEngine {
 
     /// Uninstall an application with the specified mode.
     /// Returns the operation ID for event tracking.
+    /// When `safe_mode` is true, residual files are moved to trash instead of being permanently deleted.
     pub fn uninstall_app(
         &self,
         app: InstalledApp,
         mode: UninstallMode,
         residual_paths: Vec<String>,
+        safe_mode: bool,
     ) -> Result<String, String> {
         let op_id = Uuid::new_v4().to_string();
         let event_bus = Arc::clone(&self.event_bus);
@@ -246,41 +248,62 @@ impl UninstallEngine {
                     0
                 };
 
-                // Try direct removal first
-                let result = tokio::task::spawn_blocking({
-                    let path = path.clone();
-                    move || {
-                        if path.is_dir() {
-                            std::fs::remove_dir_all(&path)
-                        } else {
-                            std::fs::remove_file(&path)
+                if safe_mode {
+                    // Safe mode: move to trash using platform provider
+                    match platform.move_to_trash(&path) {
+                        Ok(()) => {
+                            total_deleted += 1;
+                            total_freed += file_size;
+                        }
+                        Err(e) => {
+                            let _ = event_bus.emit(UninstallEvent::UninstallError {
+                                op_id: op_id_clone.clone(),
+                                message: format!(
+                                    "Failed to move to trash {}: {}",
+                                    path_str, e.message
+                                ),
+                                recoverable: true,
+                            });
+                            continue;
                         }
                     }
-                })
-                .await;
-
-                match result {
-                    Ok(Ok(())) => {
-                        total_deleted += 1;
-                        total_freed += file_size;
-                    }
-                    _ => {
-                        // Fallback to platform safe_remove
-                        match platform.safe_remove(&path) {
-                            Ok(()) => {
-                                total_deleted += 1;
-                                total_freed += file_size;
+                } else {
+                    // Direct delete mode
+                    let result = tokio::task::spawn_blocking({
+                        let path = path.clone();
+                        move || {
+                            if path.is_dir() {
+                                std::fs::remove_dir_all(&path)
+                            } else {
+                                std::fs::remove_file(&path)
                             }
-                            Err(e) => {
-                                let _ = event_bus.emit(UninstallEvent::UninstallError {
-                                    op_id: op_id_clone.clone(),
-                                    message: format!(
-                                        "Failed to remove {}: {}",
-                                        path_str, e.message
-                                    ),
-                                    recoverable: true,
-                                });
-                                continue;
+                        }
+                    })
+                    .await;
+
+                    match result {
+                        Ok(Ok(())) => {
+                            total_deleted += 1;
+                            total_freed += file_size;
+                        }
+                        _ => {
+                            // Fallback to platform safe_remove
+                            match platform.safe_remove(&path) {
+                                Ok(()) => {
+                                    total_deleted += 1;
+                                    total_freed += file_size;
+                                }
+                                Err(e) => {
+                                    let _ = event_bus.emit(UninstallEvent::UninstallError {
+                                        op_id: op_id_clone.clone(),
+                                        message: format!(
+                                            "Failed to remove {}: {}",
+                                            path_str, e.message
+                                        ),
+                                        recoverable: true,
+                                    });
+                                    continue;
+                                }
                             }
                         }
                     }

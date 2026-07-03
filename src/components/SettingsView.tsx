@@ -35,7 +35,8 @@ import {
   Monitor,
   ShieldAlert,
   RefreshCw,
-  ArrowUpCircle
+  ArrowUpCircle,
+  Shield
 } from "lucide-react";
 
 interface SettingsViewProps {
@@ -416,6 +417,33 @@ export default function SettingsView({
                     <span
                       className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${
                         generalSettings.deepScan ? "translate-x-5" : ""
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Safe Delete Mode */}
+                <div className="flex items-start justify-between p-4 rounded-xl bg-gray-800/20 border border-gray-800/50 hover:bg-gray-800/30 transition-all duration-150">
+                  <div className="space-y-1 flex-1 pr-4">
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-gray-200 cursor-pointer" onClick={() => toggleSetting("safeMode")}>
+                        {t("settings.general.safeMode")}
+                      </label>
+                      <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
+                        <Shield size={10} /> {t("settings.general.safeMode.badge")}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400">{t("settings.general.safeMode.desc")}</p>
+                  </div>
+                  <button
+                    onClick={() => toggleSetting("safeMode")}
+                    className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${
+                      generalSettings.safeMode !== false ? "bg-blue-600" : "bg-gray-700"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${
+                        generalSettings.safeMode !== false ? "translate-x-5" : ""
                       }`}
                     />
                   </button>

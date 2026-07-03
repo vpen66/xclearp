@@ -896,15 +896,19 @@ fn count_children(path: &Path) -> u64 {
 }
 
 /// 删除指定的文件或目录
+/// When `safe_mode` is true, files are moved to trash instead of being permanently deleted.
 #[command]
 pub async fn delete_path(
     state: tauri::State<'_, DiskAnalysisState>,
     path: String,
+    safe_mode: Option<bool>,
 ) -> Result<bool, String> {
     let p = PathBuf::from(&path);
     if !p.exists() {
         return Err(format!("Path does not exist: {}", path));
     }
+
+    let use_safe_mode = safe_mode.unwrap_or(true);
 
     // Invalidate the deleted path and all its ancestor directories in the size cache
     {
@@ -917,22 +921,33 @@ pub async fn delete_path(
         }
     }
 
-    tokio::task::spawn_blocking(move || {
-        // If it's a symlink, delete the symlink itself, not the target directory contents
-        if let Ok(metadata) = std::fs::symlink_metadata(&p) {
-            if metadata.file_type().is_symlink() {
-                return std::fs::remove_file(&p).map_err(|e| e.to_string());
+    if use_safe_mode {
+        // Safe mode: move to trash using platform provider
+        let platform = crate::platform::create_platform_provider();
+        tokio::task::spawn_blocking(move || {
+            platform.move_to_trash(&p).map_err(|e| e.to_string())
+        })
+        .await
+        .map_err(|e| format!("Spawn blocking error: {}", e))?
+        .map(|_| true)
+    } else {
+        tokio::task::spawn_blocking(move || {
+            // If it's a symlink, delete the symlink itself, not the target directory contents
+            if let Ok(metadata) = std::fs::symlink_metadata(&p) {
+                if metadata.file_type().is_symlink() {
+                    return std::fs::remove_file(&p).map_err(|e| e.to_string());
+                }
             }
-        }
-        if p.is_dir() {
-            std::fs::remove_dir_all(&p).map_err(|e| e.to_string())
-        } else {
-            std::fs::remove_file(&p).map_err(|e| e.to_string())
-        }
-    })
-    .await
-    .map_err(|e| format!("Spawn blocking error: {}", e))?
-    .map(|_| true)
+            if p.is_dir() {
+                std::fs::remove_dir_all(&p).map_err(|e| e.to_string())
+            } else {
+                std::fs::remove_file(&p).map_err(|e| e.to_string())
+            }
+        })
+        .await
+        .map_err(|e| format!("Spawn blocking error: {}", e))?
+        .map(|_| true)
+    }
 }
 
 /// 清空磁盘分析大小缓存

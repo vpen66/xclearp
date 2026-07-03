@@ -13,7 +13,7 @@ export interface UseCleanStreamReturn {
   isCleaning: boolean;
   cleanProgress: CleanProgress | null;
   cleanSummary: CleanSummary | null;
-  startClean: (targets: ScanTarget[]) => Promise<void>;
+  startClean: (targets: ScanTarget[], safeMode?: boolean) => Promise<void>;
   cancelClean: () => Promise<void>;
   error: string | null;
   totalTargets: number;
@@ -96,8 +96,8 @@ export function useCleanStream(onFileDeleted?: (path: string) => void): UseClean
     };
   }, []);
 
-  const startClean = useCallback(async (targets: ScanTarget[]) => {
-    console.log("[useCleanStream hook] startClean called with targets:", targets);
+  const startClean = useCallback(async (targets: ScanTarget[], safeMode?: boolean) => {
+    console.log("[useCleanStream hook] startClean called with targets:", targets, "safeMode:", safeMode);
     setError(null);
     setCleanProgress(null);
     setCleanSummary(null);
@@ -107,7 +107,7 @@ export function useCleanStream(onFileDeleted?: (path: string) => void): UseClean
     opIdRef.current = null;
     try {
       console.log("[useCleanStream hook] calling ipcStartClean...");
-      const { op_id } = await ipcStartClean(targets);
+      const { op_id } = await ipcStartClean(targets, safeMode);
       console.log("[useCleanStream hook] ipcStartClean resolved with op_id:", op_id);
       opIdRef.current = op_id;
     } catch (err) {
