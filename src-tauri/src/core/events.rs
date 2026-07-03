@@ -138,6 +138,16 @@ pub enum UninstallEvent {
     },
     #[serde(rename = "app_move_started")]
     AppMoveStarted { op_id: String, app_path: String },
+    #[serde(rename = "official_uninstaller_started")]
+    OfficialUninstallerStarted { op_id: String, command: String },
+    #[serde(rename = "official_uninstaller_completed")]
+    OfficialUninstallerCompleted {
+        op_id: String,
+        exit_code: i32,
+        duration_ms: u64,
+    },
+    #[serde(rename = "residual_scan_started")]
+    ResidualScanStarted { op_id: String },
     #[serde(rename = "delete_progress")]
     DeleteProgress {
         op_id: String,
@@ -171,6 +181,9 @@ impl UninstallEvent {
             | UninstallEvent::AppScanProgress { op_id, .. }
             | UninstallEvent::AppScanCompleted { op_id, .. }
             | UninstallEvent::AppMoveStarted { op_id, .. }
+            | UninstallEvent::OfficialUninstallerStarted { op_id, .. }
+            | UninstallEvent::OfficialUninstallerCompleted { op_id, .. }
+            | UninstallEvent::ResidualScanStarted { op_id, .. }
             | UninstallEvent::DeleteProgress { op_id, .. }
             | UninstallEvent::UninstallCompleted { op_id, .. }
             | UninstallEvent::UninstallError { op_id, .. }

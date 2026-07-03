@@ -29,3 +29,6 @@ tauri-build = { version = "2", features = [] }
 objc2 = "0.6.4"
 objc2-foundation = { version = "0.3.2", features = ["NSURL", "NSString", "NSDictionary", "NSArray", "NSError"] }
 
+[target.'cfg(target_os = "windows")'.dependencies]
+winreg = "0.52"
+
