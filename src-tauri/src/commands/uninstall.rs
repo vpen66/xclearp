@@ -37,7 +37,12 @@ pub async fn uninstall_app(
         "residual_only" => UninstallMode::ResidualOnly,
         _ => UninstallMode::TrashOnly,
     };
-    let op_id = engine.uninstall_app(app, uninstall_mode, residual_paths, safe_mode.unwrap_or(true))?;
+    let op_id = engine.uninstall_app(
+        app,
+        uninstall_mode,
+        residual_paths,
+        safe_mode.unwrap_or(true),
+    )?;
     Ok(serde_json::json!({ "op_id": op_id }))
 }
 

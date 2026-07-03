@@ -924,12 +924,10 @@ pub async fn delete_path(
     if use_safe_mode {
         // Safe mode: move to trash using platform provider
         let platform = crate::platform::create_platform_provider();
-        tokio::task::spawn_blocking(move || {
-            platform.move_to_trash(&p).map_err(|e| e.to_string())
-        })
-        .await
-        .map_err(|e| format!("Spawn blocking error: {}", e))?
-        .map(|_| true)
+        tokio::task::spawn_blocking(move || platform.move_to_trash(&p).map_err(|e| e.to_string()))
+            .await
+            .map_err(|e| format!("Spawn blocking error: {}", e))?
+            .map(|_| true)
     } else {
         tokio::task::spawn_blocking(move || {
             // If it's a symlink, delete the symlink itself, not the target directory contents
