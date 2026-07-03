@@ -432,6 +432,20 @@
   "disk.menu.delete_label": "删除",
   "disk.error.delete_alert": "删除失败: {error}",
 
+  "disk.batch.delete_button": "删除",
+  "disk.batch.select_all": "全选",
+  "disk.batch.selected_count": "已选 {count} 项",
+  "disk.batch.confirm_title": "确认批量删除",
+  "disk.batch.confirm_message": "以下 {count} 个文件/目录将被永久删除，此操作不可撤销。",
+  "disk.batch.confirm_selected": "将删除 {count} 项，共 {size}",
+  "disk.batch.deleting": "正在删除...",
+  "disk.batch.delete_success": "成功删除 {count} 项",
+  "disk.batch.delete_partial": "删除完成，{success} 项成功，{fail} 项失败",
+  "disk.batch.cancel_selection": "取消选择",
+  
+  "disk.hidden.show": "显示隐藏文件",
+  "disk.hidden.hide": "隐藏隐藏文件",
+
   "uninstall.tooltip.refresh": "刷新应用列表",
 
   "settings.rules.import.title": "从 JSON 文件导入清理规则",
