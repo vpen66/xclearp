@@ -59,6 +59,18 @@ export function useUninstallStream(): UseUninstallStreamReturn {
   const [error, setError] = useState<string | null>(null);
   const opIdRef = useRef<string | null>(null);
   const appsLoadedRef = useRef(false);
+  const loadingRef = useRef(false);
+
+  // Deduplicate apps by composite key (name + appPath)
+  const deduplicateApps = (apps: InstalledApp[]): InstalledApp[] => {
+    const seen = new Set<string>();
+    return apps.filter((app) => {
+      const key = `${app.name.toLowerCase()}::${app.appPath.toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
 
   // Listen to uninstall events (for delete progress)
   useEffect(() => {
@@ -128,31 +140,36 @@ export function useUninstallStream(): UseUninstallStreamReturn {
   }, []);
 
   const loadApps = useCallback(async () => {
-    if (appsLoadedRef.current) return;
+    if (appsLoadedRef.current || loadingRef.current) return;
     appsLoadedRef.current = true;
+    loadingRef.current = true;
     setAppsLoading(true);
     setError(null);
     try {
       const result = await ipcListApps();
-      setApps(result);
+      setApps(deduplicateApps(result));
     } catch (err) {
       setError(String(err));
     } finally {
       setAppsLoading(false);
+      loadingRef.current = false;
     }
   }, []);
 
   const refreshApps = useCallback(async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     appsLoadedRef.current = true;
     setAppsLoading(true);
     setError(null);
     try {
       const result = await ipcListApps();
-      setApps(result);
+      setApps(deduplicateApps(result));
     } catch (err) {
       setError(String(err));
     } finally {
       setAppsLoading(false);
+      loadingRef.current = false;
     }
   }, []);
 
