@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::path::PathBuf;
 
 use crate::commands::disk::FileEntry;
 
@@ -161,6 +162,8 @@ pub enum UninstallEvent {
         total_deleted: u64,
         total_freed: u64,
         duration_ms: u64,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        failed_items: Vec<FailedItem>,
     },
     #[serde(rename = "uninstall_error")]
     UninstallError {
@@ -170,6 +173,14 @@ pub enum UninstallEvent {
     },
     #[serde(rename = "uninstall_cancelled")]
     UninstallCancelled { op_id: String },
+}
+
+/// A file/directory that failed to be deleted during uninstall.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FailedItem {
+    pub path: PathBuf,
+    pub error: String,
 }
 
 #[allow(dead_code)]

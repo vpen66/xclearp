@@ -37,6 +37,16 @@
     "allow-uninstall-app",
     "allow-cancel-uninstall",
     "allow-get-icon-data-urls",
+    "allow-retry-failed-items",
+    "allow-batch-uninstall",
+    "allow-get-failed-uninstalls",
+    "allow-clear-failed-uninstalls",
+    "allow-get-uninstall-state",
+    "allow-scan-orphan-files",
+    "allow-delete-orphan-files",
+    "allow-list-startup-items",
+    "allow-toggle-startup-item",
+    "allow-remove-startup-item",
     "updater:default"
   ]
 }

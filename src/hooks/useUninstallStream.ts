@@ -6,7 +6,9 @@ import {
   listApps as ipcListApps,
   scanApp as ipcScanApp,
   uninstallApp as ipcUninstallApp,
+  batchUninstall as ipcBatchUninstall,
   cancelUninstall as ipcCancelUninstall,
+  retryFailedItems as ipcRetryFailedItems,
 } from "../lib/ipc";
 import type {
   InstalledApp,
@@ -16,6 +18,8 @@ import type {
   UninstallDeleteProgress,
   UninstallSummary,
   OfficialUninstallerPhase,
+  FailedItem,
+  BatchAppConfig,
 } from "../types/uninstall";
 
 export interface UseUninstallStreamReturn {
@@ -29,19 +33,46 @@ export interface UseUninstallStreamReturn {
   uninstallSummary: UninstallSummary | null;
   officialUninstallerPhase: OfficialUninstallerPhase;
   error: string | null;
+  // Batch mode
+  isBatch: boolean;
+  selectedApps: InstalledApp[];
+  batchScanIndex: number;
+  batchScanTotal: number;
+  batchScanResults: Map<string, AppFileGroup[]>;
+  batchUninstallIndex: number;
+  batchUninstallTotal: number;
+  batchUninstallAppName: string;
+  // Actions
   loadApps: () => Promise<void>;
   refreshApps: () => Promise<void>;
   selectAndScan: (app: InstalledApp) => Promise<void>;
+  batchScanApps: (apps: InstalledApp[]) => Promise<void>;
   startUninstall: (
     app: InstalledApp,
     mode: UninstallMode,
     residualPaths: string[],
     safeMode?: boolean,
+    excludePaths?: string[],
+  ) => Promise<void>;
+  startBatchUninstall: (
+    configs: BatchAppConfig[],
+    safeMode?: boolean,
   ) => Promise<void>;
   cancelOperation: () => Promise<void>;
+  retryFailedItems: (safeMode?: boolean) => Promise<void>;
   resetToSelect: () => void;
   goBackToSelect: () => void;
   setFileGroups: (groups: AppFileGroup[]) => void;
+  setIsBatch: (v: boolean) => void;
+  setSelectedApps: (apps: InstalledApp[]) => void;
+}
+
+/** Compute max risk level from a set of file groups */
+const riskOrder: Record<string, number> = { safe: 0, medium: 1, high: 2, critical: 3 };
+const riskReverseMap: Record<number, InstalledApp["riskLevel"]> = { 0: "safe", 1: "medium", 2: "high", 3: "critical" };
+function computeMaxRisk(groups: AppFileGroup[]): InstalledApp["riskLevel"] {
+  const maxVal = groups.reduce((max, g) => Math.max(max, riskOrder[g.riskLevel] ?? 0), 0);
+  return riskReverseMap[maxVal] ?? "safe";
 }
 
 export function useUninstallStream(): UseUninstallStreamReturn {
@@ -61,6 +92,17 @@ export function useUninstallStream(): UseUninstallStreamReturn {
   const opIdRef = useRef<string | null>(null);
   const appsLoadedRef = useRef(false);
   const loadingRef = useRef(false);
+
+  // Batch mode state
+  const [isBatch, setIsBatch] = useState(false);
+  const isBatchRef = useRef(false);
+  const [selectedApps, setSelectedApps] = useState<InstalledApp[]>([]);
+  const [batchScanIndex, setBatchScanIndex] = useState(0);
+  const [batchScanTotal, setBatchScanTotal] = useState(0);
+  const [batchScanResults, setBatchScanResults] = useState<Map<string, AppFileGroup[]>>(new Map());
+  const [batchUninstallIndex, setBatchUninstallIndex] = useState(0);
+  const [batchUninstallTotal, setBatchUninstallTotal] = useState(0);
+  const [batchUninstallAppName, setBatchUninstallAppName] = useState("");
 
   // Deduplicate apps by composite key (name + appPath)
   const deduplicateApps = (apps: InstalledApp[]): InstalledApp[] => {
@@ -101,6 +143,11 @@ export function useUninstallStream(): UseUninstallStreamReturn {
             freedBytes: (evt.freed_bytes as number) ?? 0,
             currentPath: (evt.current_path as string) ?? "",
           });
+          // In batch mode, repurpose: deletedFiles=appIndex, freedBytes=totalApps, currentPath=appName
+          if (isBatchRef.current) {
+            setBatchUninstallIndex(((evt.deleted_files as number) ?? 0) + 1);
+            setBatchUninstallAppName((evt.current_path as string) ?? "");
+          }
           break;
 
         case "uninstall_completed":
@@ -108,6 +155,7 @@ export function useUninstallStream(): UseUninstallStreamReturn {
             totalDeleted: (evt.total_deleted as number) ?? 0,
             totalFreed: (evt.total_freed as number) ?? 0,
             durationMs: (evt.duration_ms as number) ?? 0,
+            failedItems: (evt.failed_items as FailedItem[]) ?? undefined,
           });
           setPhase("done");
           opIdRef.current = null;
@@ -174,6 +222,7 @@ export function useUninstallStream(): UseUninstallStreamReturn {
     }
   }, []);
 
+  // Compute max risk level from file groups
   const selectAndScan = useCallback(async (app: InstalledApp) => {
     setSelectedApp(app);
     setFileGroups([]);
@@ -186,6 +235,9 @@ export function useUninstallStream(): UseUninstallStreamReturn {
     try {
       const groups = await ipcScanApp(app);
       setFileGroups(groups);
+      // Update app risk level based on scanned file groups
+      const maxRisk = computeMaxRisk(groups);
+      setSelectedApp({ ...app, riskLevel: maxRisk });
       setPhase("review");
     } catch (err) {
       setError(String(err));
@@ -201,6 +253,7 @@ export function useUninstallStream(): UseUninstallStreamReturn {
       mode: UninstallMode,
       residualPaths: string[],
       safeMode?: boolean,
+      excludePaths?: string[],
     ) => {
       setPhase("uninstalling");
       setError(null);
@@ -210,7 +263,7 @@ export function useUninstallStream(): UseUninstallStreamReturn {
       );
       opIdRef.current = null;
       try {
-        const { op_id } = await ipcUninstallApp(app, mode, residualPaths, safeMode);
+        const { op_id } = await ipcUninstallApp(app, mode, residualPaths, safeMode, excludePaths);
         opIdRef.current = op_id;
       } catch (err) {
         setError(String(err));
@@ -219,6 +272,74 @@ export function useUninstallStream(): UseUninstallStreamReturn {
       }
     },
     [],
+  );
+
+  const setBatchMode = useCallback((v: boolean) => {
+    setIsBatch(v);
+    isBatchRef.current = v;
+  }, []);
+
+  const batchScanApps = useCallback(async (apps: InstalledApp[]) => {
+    setBatchMode(true);
+    setBatchScanTotal(apps.length);
+    setBatchScanIndex(0);
+    setBatchScanResults(new Map());
+    setSelectedApps(apps);
+    setFileGroups([]);
+    setDeleteProgress(null);
+    setUninstallSummary(null);
+    setError(null);
+    setPhase("scanning");
+    setIsScanning(true);
+
+    const results = new Map<string, AppFileGroup[]>();
+    const updatedApps: InstalledApp[] = [];
+    try {
+      for (let i = 0; i < apps.length; i++) {
+        setBatchScanIndex(i + 1);
+        setSelectedApp(apps[i]);
+        const groups = await ipcScanApp(apps[i]);
+        const key = `${apps[i].appPath}::${apps[i].bundleId}::${apps[i].name}`;
+        results.set(key, groups);
+        setBatchScanResults(new Map(results));
+        // Update app risk level based on scanned file groups
+        const maxRisk = computeMaxRisk(groups);
+        updatedApps.push({ ...apps[i], riskLevel: maxRisk });
+      }
+      setSelectedApps(updatedApps);
+      // After all scans complete, aggregate for review phase
+      // Use the last app's groups as the "current" fileGroups for single-app compat
+      const lastKey = `${apps[apps.length - 1].appPath}::${apps[apps.length - 1].bundleId}::${apps[apps.length - 1].name}`;
+      setFileGroups(results.get(lastKey) || []);
+      setPhase("review");
+    } catch (err) {
+      setError(String(err));
+      setPhase("select");
+    } finally {
+      setIsScanning(false);
+    }
+  }, [setBatchMode]);
+
+  const startBatchUninstall = useCallback(
+    async (configs: BatchAppConfig[], safeMode?: boolean) => {
+      setBatchMode(true);
+      setPhase("uninstalling");
+      setError(null);
+      setDeleteProgress(null);
+      setOfficialUninstallerPhase("idle");
+      setBatchUninstallIndex(1);
+      setBatchUninstallTotal(configs.length);
+      setBatchUninstallAppName(configs[0]?.app.name || "");
+      opIdRef.current = null;
+      try {
+        const { op_id } = await ipcBatchUninstall(configs, safeMode);
+        opIdRef.current = op_id;
+      } catch (err) {
+        setError(String(err));
+        setPhase("review");
+      }
+    },
+    [setBatchMode],
   );
 
   const cancelOperation = useCallback(async () => {
@@ -231,6 +352,36 @@ export function useUninstallStream(): UseUninstallStreamReturn {
     }
   }, []);
 
+  const retryFailedItems = useCallback(
+    async (safeMode?: boolean) => {
+      const failedItems = uninstallSummary?.failedItems;
+      if (!failedItems || failedItems.length === 0) return;
+
+      const paths = failedItems.map((item) => item.path);
+      setPhase("uninstalling");
+      setError(null);
+      setDeleteProgress(null);
+      setUninstallSummary(null);
+      setOfficialUninstallerPhase("idle");
+      opIdRef.current = null;
+      try {
+        const { op_id } = await ipcRetryFailedItems(paths, safeMode);
+        opIdRef.current = op_id;
+      } catch (err) {
+        setError(String(err));
+        setPhase("done");
+        // Restore summary so user can see what failed
+        setUninstallSummary({
+          totalDeleted: 0,
+          totalFreed: 0,
+          durationMs: 0,
+          failedItems,
+        });
+      }
+    },
+    [uninstallSummary],
+  );
+
   const resetToSelect = useCallback(() => {
     setPhase("select");
     setSelectedApp(null);
@@ -240,14 +391,25 @@ export function useUninstallStream(): UseUninstallStreamReturn {
     setError(null);
     setOfficialUninstallerPhase("idle");
     opIdRef.current = null;
-  }, []);
+    setBatchMode(false);
+    setSelectedApps([]);
+    setBatchScanResults(new Map());
+    setBatchScanIndex(0);
+    setBatchScanTotal(0);
+    setBatchUninstallIndex(0);
+    setBatchUninstallTotal(0);
+    setBatchUninstallAppName("");
+  }, [setBatchMode]);
 
   const goBackToSelect = useCallback(() => {
     setPhase("select");
     setSelectedApp(null);
     setFileGroups([]);
     setError(null);
-  }, []);
+    setBatchMode(false);
+    setSelectedApps([]);
+    setBatchScanResults(new Map());
+  }, [setBatchMode]);
 
   return {
     phase,
@@ -260,14 +422,29 @@ export function useUninstallStream(): UseUninstallStreamReturn {
     uninstallSummary,
     officialUninstallerPhase,
     error,
+    // Batch mode
+    isBatch,
+    selectedApps,
+    batchScanIndex,
+    batchScanTotal,
+    batchScanResults,
+    batchUninstallIndex,
+    batchUninstallTotal,
+    batchUninstallAppName,
+    // Actions
     loadApps,
     refreshApps,
     selectAndScan,
+    batchScanApps,
     startUninstall,
+    startBatchUninstall,
     cancelOperation,
+    retryFailedItems,
     resetToSelect,
     goBackToSelect,
     setFileGroups,
+    setIsBatch: setBatchMode,
+    setSelectedApps,
   };
 }
 

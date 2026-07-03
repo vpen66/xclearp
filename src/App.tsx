@@ -11,6 +11,8 @@ import ScanView from "./components/ScanView";
 import CleanProgress from "./components/CleanProgress";
 import DiskAnalysis from "./components/DiskAnalysis";
 import UninstallView from "./components/UninstallView";
+import StartupView from "./components/StartupView";
+import OrphanView from "./components/OrphanView";
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>("scan");
@@ -186,6 +188,14 @@ function App() {
           {/* Always keep UninstallView mounted to preserve state across tabs */}
           <div className={currentPage === "uninstall" ? "" : "hidden"}>
             <UninstallView isActive={currentPage === "uninstall"} />
+          </div>
+          {/* Always keep StartupView mounted to preserve state across tabs */}
+          <div className={currentPage === "startup" ? "" : "hidden"}>
+            <StartupView isActive={currentPage === "startup"} />
+          </div>
+          {/* Always keep OrphanView mounted to preserve state across tabs */}
+          <div className={currentPage === "orphan" ? "" : "hidden"}>
+            <OrphanView isActive={currentPage === "orphan"} />
           </div>
           {/* Always keep SettingsView mounted to preserve updater state across tabs */}
           <div className={currentPage === "settings" ? "" : "hidden"}>

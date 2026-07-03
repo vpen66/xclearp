@@ -20,6 +20,8 @@ import {
   ListPlus,
   ChevronRight as ChevronRightIcon,
   PackageX,
+  Rocket,
+  FolderSearch,
 } from "lucide-react";
 
 export function IconBox(props: React.ComponentProps<typeof Box>) {
@@ -98,4 +100,12 @@ export function IconChevronRightSmall(
 
 export function IconPackageX(props: React.ComponentProps<typeof PackageX>) {
   return <PackageX size={20} strokeWidth={2} {...props} />;
+}
+
+export function IconRocket(props: React.ComponentProps<typeof Rocket>) {
+  return <Rocket size={20} strokeWidth={2} {...props} />;
+}
+
+export function IconFolderQuestion(props: React.ComponentProps<typeof FolderSearch>) {
+  return <FolderSearch size={20} strokeWidth={2} {...props} />;
 }

@@ -11,7 +11,7 @@ use crate::core::event_bus::UninstallEventBus;
 use crate::core::events::UninstallEvent;
 use crate::core::rules::CleanRule;
 use crate::core::uninstall::app_scanner::scan_paths_to_groups;
-use crate::core::uninstall::{AppFileCategory, AppFileGroup, InstalledApp};
+use crate::core::uninstall::{AppFileCategory, AppFileGroup, InstalledApp, RiskLevel};
 
 /// Linux-specific platform provider (follows XDG Base Directory Specification).
 pub struct LinuxProvider;
@@ -22,7 +22,7 @@ impl LinuxProvider {
     }
 
     fn home_dir() -> PathBuf {
-        dirs::home_dir().unwrap_or_else(|| PathBuf::from("/home/unknown"))
+        dirs::home_dir().unwrap_or_else(std::env::temp_dir)
     }
 
     fn xdg_cache_home() -> PathBuf {
@@ -558,6 +558,7 @@ impl PlatformProvider for LinuxProvider {
                     publisher: None,
                     package_manager: Some(pkg_mgr),
                     package_name: final_pkg_name,
+                    risk_level: RiskLevel::Safe,
                 });
             }
         }

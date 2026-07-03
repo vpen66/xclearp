@@ -138,6 +138,56 @@ identifier = "allow-get-icon-data-urls"
 description = "Enables the get_icon_data_urls command"
 commands.allow = ["get_icon_data_urls"]
 
+[[permission]]
+identifier = "allow-retry-failed-items"
+description = "Enables the retry_failed_items command"
+commands.allow = ["retry_failed_items"]
+
+[[permission]]
+identifier = "allow-batch-uninstall"
+description = "Enables the batch_uninstall command"
+commands.allow = ["batch_uninstall"]
+
+[[permission]]
+identifier = "allow-get-failed-uninstalls"
+description = "Enables the get_failed_uninstalls command"
+commands.allow = ["get_failed_uninstalls"]
+
+[[permission]]
+identifier = "allow-clear-failed-uninstalls"
+description = "Enables the clear_failed_uninstalls command"
+commands.allow = ["clear_failed_uninstalls"]
+
+[[permission]]
+identifier = "allow-get-uninstall-state"
+description = "Enables the get_uninstall_state command"
+commands.allow = ["get_uninstall_state"]
+
+[[permission]]
+identifier = "allow-scan-orphan-files"
+description = "Enables the scan_orphan_files command"
+commands.allow = ["scan_orphan_files"]
+
+[[permission]]
+identifier = "allow-delete-orphan-files"
+description = "Enables the delete_orphan_files command"
+commands.allow = ["delete_orphan_files"]
+
+[[permission]]
+identifier = "allow-list-startup-items"
+description = "Enables the list_startup_items command"
+commands.allow = ["list_startup_items"]
+
+[[permission]]
+identifier = "allow-toggle-startup-item"
+description = "Enables the toggle_startup_item command"
+commands.allow = ["toggle_startup_item"]
+
+[[permission]]
+identifier = "allow-remove-startup-item"
+description = "Enables the remove_startup_item command"
+commands.allow = ["remove_startup_item"]
+
 [[permission-set]]
 identifier = "default"
 description = "Default permission set for XClearp app commands"
@@ -170,5 +220,15 @@ permissions = [
   "allow-uninstall-app",
   "allow-cancel-uninstall",
   "allow-get-icon-data-urls",
+  "allow-retry-failed-items",
+  "allow-batch-uninstall",
+  "allow-get-failed-uninstalls",
+  "allow-clear-failed-uninstalls",
+  "allow-get-uninstall-state",
+  "allow-scan-orphan-files",
+  "allow-delete-orphan-files",
+  "allow-list-startup-items",
+  "allow-toggle-startup-item",
+  "allow-remove-startup-item",
 ]
 

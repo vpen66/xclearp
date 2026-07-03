@@ -180,4 +180,9 @@ impl CleanEngine {
     pub fn whitelist(&self) -> &Arc<std::sync::RwLock<Whitelist>> {
         &self.whitelist
     }
+
+    /// Get a reference to the platform provider.
+    pub fn platform(&self) -> &Arc<dyn PlatformProvider + Send + Sync> {
+        &self.platform
+    }
 }
