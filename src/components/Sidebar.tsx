@@ -1,5 +1,7 @@
 /** Sidebar navigation component */
 
+import { useState, useEffect } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import type { Page } from "../types/index";
 import {
   IconSearch,
@@ -18,6 +20,11 @@ interface SidebarProps {
 export default function Sidebar({ currentPage, onNavigate, width }: SidebarProps) {
   const { t } = useI18n();
   const isCollapsed = width < 110;
+  const [appVersion, setAppVersion] = useState("");
+
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => {});
+  }, []);
 
   const navItems: { page: Page; labelKey: string; icon: React.ReactNode }[] = [
     { page: "scan", labelKey: "nav.scan", icon: <IconSearch /> },
@@ -89,7 +96,7 @@ export default function Sidebar({ currentPage, onNavigate, width }: SidebarProps
       {/* Footer */}
       <div className={`py-3 border-t border-gray-700/50 flex justify-center items-center ${isCollapsed ? "px-1" : "px-5"}`}>
         <p className="text-[10px] text-gray-600 truncate">
-          {isCollapsed ? "v0.1" : "v0.1.0"}
+          {isCollapsed ? `v${appVersion.split(".").slice(0, 2).join(".")}` : `v${appVersion}`}
         </p>
       </div>
     </aside>

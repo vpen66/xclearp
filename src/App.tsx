@@ -186,7 +186,8 @@ function App() {
           <div className={currentPage === "uninstall" ? "" : "hidden"}>
             <UninstallView isActive={currentPage === "uninstall"} />
           </div>
-          {currentPage === "settings" && (
+          {/* Always keep SettingsView mounted to preserve updater state across tabs */}
+          <div className={currentPage === "settings" ? "" : "hidden"}>
             <SettingsView
               groups={groups}
               loading={loading}
@@ -200,7 +201,7 @@ function App() {
               generalSettings={generalSettings}
               setGeneralSettings={setGeneralSettings}
             />
-          )}
+          </div>
         </div>
       </main>
     </div>

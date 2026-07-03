@@ -119,6 +119,7 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [expandedTreeNodes, setExpandedTreeNodes] = useState<Set<string>>(new Set());
   const [iconDataUrls, setIconDataUrls] = useState<Record<string, string>>({});
+  const [brokenIcons, setBrokenIcons] = useState<Set<string>>(new Set());
   const listScrollRef = useRef<HTMLDivElement>(null);
   const savedScrollTopRef = useRef(0);
 
@@ -280,7 +281,7 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
           <div ref={listScrollRef} className="space-y-1 max-h-[60vh] overflow-y-auto custom-scrollbar">
             {filteredApps.map((app) => (
               <button
-                key={app.appPath}
+                key={`${app.appPath}::${app.bundleId}::${app.name}`}
                 onClick={() => {
                   // Save scroll position before leaving
                   if (listScrollRef.current) {
@@ -291,11 +292,14 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800/80 transition-colors text-left group"
               >
                 <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center text-lg font-bold text-gray-400 shrink-0 overflow-hidden">
-                  {app.iconPath && iconDataUrls[app.iconPath] ? (
+                  {app.iconPath && iconDataUrls[app.iconPath] && !brokenIcons.has(app.iconPath) ? (
                     <img
                       src={iconDataUrls[app.iconPath]}
                       alt={app.name}
                       className="w-full h-full object-contain"
+                      onError={() => {
+                        setBrokenIcons((prev) => new Set(prev).add(app.iconPath!));
+                      }}
                     />
                   ) : (
                     app.name.charAt(0).toUpperCase()
