@@ -23,19 +23,26 @@ pub async fn scan_app(
 
 /// Uninstall an application with the specified mode.
 /// Returns the operation ID for event tracking.
+/// When `safe_mode` is true, residual files are moved to trash instead of being permanently deleted.
 #[command]
 pub async fn uninstall_app(
     engine: State<'_, UninstallEngine>,
     app: InstalledApp,
     mode: String,
     residual_paths: Vec<String>,
+    safe_mode: Option<bool>,
 ) -> Result<serde_json::Value, String> {
     let uninstall_mode = match mode.as_str() {
         "official_uninstaller" => UninstallMode::OfficialUninstaller,
         "residual_only" => UninstallMode::ResidualOnly,
         _ => UninstallMode::TrashOnly,
     };
-    let op_id = engine.uninstall_app(app, uninstall_mode, residual_paths)?;
+    let op_id = engine.uninstall_app(
+        app,
+        uninstall_mode,
+        residual_paths,
+        safe_mode.unwrap_or(true),
+    )?;
     Ok(serde_json::json!({ "op_id": op_id }))
 }
 

@@ -89,6 +89,18 @@ function buildUninstallTree(files: AppFileEntry[]): TreeNode[] {
   return root.children;
 }
 
+/** Helper: read safeMode from localStorage settings, default to true */
+function getSafeMode(): boolean {
+  try {
+    const saved = localStorage.getItem("xclearp_settings");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.safeMode !== false;
+    }
+  } catch (e) {}
+  return true;
+}
+
 export default function UninstallView({ isActive }: { isActive: boolean }) {
   const { t } = useI18n();
   const {
@@ -555,7 +567,7 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
                   onClick={() => {
                     setShowConfirm(false);
                     if (selectedApp) {
-                      startUninstall(selectedApp, "trash_only", []);
+                      startUninstall(selectedApp, "trash_only", [], getSafeMode());
                     }
                   }}
                   className="w-full px-4 py-2.5 rounded-lg text-sm font-medium text-gray-200 bg-gray-800 hover:bg-gray-700 transition-colors"
@@ -566,7 +578,7 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
                   onClick={() => {
                     setShowConfirm(false);
                     if (selectedApp) {
-                      startUninstall(selectedApp, "trash_only", selectedPaths);
+                      startUninstall(selectedApp, "trash_only", selectedPaths, getSafeMode());
                     }
                   }}
                   disabled={selectedPaths.length === 0}
@@ -579,7 +591,7 @@ export default function UninstallView({ isActive }: { isActive: boolean }) {
                     onClick={() => {
                       setShowConfirm(false);
                       if (selectedApp) {
-                        startUninstall(selectedApp, "official_uninstaller", selectedPaths);
+                        startUninstall(selectedApp, "official_uninstaller", selectedPaths, getSafeMode());
                       }
                     }}
                     className="w-full px-4 py-2.5 rounded-lg text-sm font-medium bg-orange-600 text-white hover:bg-orange-500 transition-colors"

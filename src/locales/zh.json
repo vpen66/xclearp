@@ -26,6 +26,9 @@
   "settings.general.deepScan": "深度检索模式",
   "settings.general.deepScan.badge": "耗时较长",
   "settings.general.deepScan.desc": "启用该项后，将执行完整的目录层级穿透扫描，查找更隐蔽的缓存残留",
+  "settings.general.safeMode": "安全删除模式",
+  "settings.general.safeMode.badge": "推荐开启",
+  "settings.general.safeMode.desc": "删除文件时先移入回收站而非直接永久删除，适用于扫描清理、磁盘分析删除和应用卸载。误删时可从回收站恢复。",
   "settings.general.theme": "界面主题",
   "settings.general.theme.desc": "切换界面的外观显示色彩风格",
   "settings.general.theme.light": "白天",
@@ -431,6 +434,20 @@
   "disk.table.symlink_tooltip": "快捷方式/软链接",
   "disk.menu.delete_label": "删除",
   "disk.error.delete_alert": "删除失败: {error}",
+
+  "disk.batch.delete_button": "删除",
+  "disk.batch.select_all": "全选",
+  "disk.batch.selected_count": "已选 {count} 项",
+  "disk.batch.confirm_title": "确认批量删除",
+  "disk.batch.confirm_message": "以下 {count} 个文件/目录将被永久删除，此操作不可撤销。",
+  "disk.batch.confirm_selected": "将删除 {count} 项，共 {size}",
+  "disk.batch.deleting": "正在删除...",
+  "disk.batch.delete_success": "成功删除 {count} 项",
+  "disk.batch.delete_partial": "删除完成，{success} 项成功，{fail} 项失败",
+  "disk.batch.cancel_selection": "取消选择",
+  
+  "disk.hidden.show": "显示隐藏文件",
+  "disk.hidden.hide": "隐藏隐藏文件",
 
   "uninstall.tooltip.refresh": "刷新应用列表",
 

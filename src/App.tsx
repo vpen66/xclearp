@@ -30,6 +30,7 @@ function App() {
       minToTray: true,
       notifyOnComplete: true,
       deepScan: false,
+      safeMode: true,
       theme: "system",
     };
   });
@@ -166,7 +167,7 @@ function App() {
                 scanSummary={scan.scanSummary}
                 onStartScan={handleStartScan}
                 onCancelScan={scan.cancelScan}
-                onStartClean={clean.startClean}
+                onStartClean={async (targets) => clean.startClean(targets, generalSettings.safeMode)}
                 error={scan.error || clean.error}
               />
               <CleanProgress

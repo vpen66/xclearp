@@ -5,7 +5,7 @@ import type { FileEntry, SortField } from "../types/disk";
 import type { RuleGroup, CleanRule } from "../types/index";
 import { useDiskAnalysis } from "../hooks/useDiskAnalysis";
 import { formatFileSize } from "../lib/ndjson";
-import { getWhitelist, updateWhitelist, deletePath, openPath, getPlatform } from "../lib/ipc";
+import { getWhitelist, updateWhitelist, deletePath, openPath, getPlatform, listDirectory } from "../lib/ipc";
 import {
   IconRefresh,
   IconHome,
@@ -33,6 +33,11 @@ import {
   Hammer,
   ShieldCheck,
   ExternalLink,
+  CheckSquare,
+  Square,
+  ChevronDown,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useToast } from "./Toast";
 import { useI18n } from "../lib/i18n";
@@ -42,12 +47,32 @@ interface DiskAnalysisProps {
   onAddRule: (rule: CleanRule) => void | Promise<void>;
 }
 
+/** Helper: read safeMode from localStorage settings, default to true */
+function getSafeMode(): boolean {
+  try {
+    const saved = localStorage.getItem("xclearp_settings");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.safeMode !== false; // default true if not set
+    }
+  } catch (e) {}
+  return true;
+}
+
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 interface LevelColor {
   bg: string;
   text: string;
+}
+
+interface ConfirmItem {
+  entry: FileEntry;
+  children?: ConfirmItem[];
+  expanded?: boolean;
+  loading?: boolean;
+  userModified?: boolean; // true when user explicitly removed children from this directory
 }
 
 
@@ -103,22 +128,40 @@ function isWindowsDrivePath(p: string): boolean {
   return /^[a-zA-Z]:/.test(p);
 }
 
+/** Determine if an entry is hidden based on platform rules */
+function isHiddenEntry(entry: FileEntry, platform: string): boolean {
+  // macOS / linux: name starts with "."
+  if (platform === "darwin" || platform === "macos" || platform === "linux") {
+    return entry.name.startsWith(".");
+  }
+  // Windows: common hidden system dirs + name starts with "."
+  if (platform === "win32" || platform === "windows") {
+    if (entry.name.startsWith(".")) return true;
+    const hiddenWindowsDirs = new Set([
+      "$recycle.bin", "$windows.~bt", "$windows.~ws",
+      "recovery", "system volume information",
+    ]);
+    return hiddenWindowsDirs.has(entry.name.toLowerCase());
+  }
+  return entry.name.startsWith(".");
+}
+
 function buildBreadcrumbSegments(path: string, platform?: string, t?: (key: string) => string): { label: string; path: string }[] {
   const isWinPlatform = platform === "win32" || platform === "windows";
   const thisPcLabel = t ? t("disk.this_pc") : "This PC";
   if (!path || path === "/") return [{ label: isWinPlatform ? thisPcLabel : "/", path: "/" }];
-  
+
   const normalized = path.replace(/\\/g, "/");
   const isWin = isWindowsDrivePath(normalized);
   const parts = normalized.split("/").filter(Boolean);
-  
+
   const segs: { label: string; path: string }[] = [];
   if (isWin) {
     segs.push({ label: thisPcLabel, path: "/" });
   } else {
     segs.push({ label: "/", path: "/" });
   }
-  
+
   let acc = "";
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
@@ -135,7 +178,7 @@ function buildBreadcrumbSegments(path: string, platform?: string, t?: (key: stri
 function makeRuleFromEntry(entry: FileEntry, groupId: string, platform: string): CleanRule {
   const isWin = platform === "win32" || platform === "windows";
   const targetPlatform = isWin ? "windows" : (platform === "darwin" || platform === "macos" ? "macos" : "linux");
-  
+
   let cleanPath = entry.path;
   if (isWin) {
     cleanPath = cleanPath.replace(/\//g, "\\");
@@ -184,6 +227,9 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
     parentPathSize,
   } = useDiskAnalysis();
 
+  // Show hidden files toggle
+  const [showHiddenFiles, setShowHiddenFiles] = useState(false);
+
   // Context menu state
   const [ctxMenu, setCtxMenu] = useState<{
     x: number;
@@ -195,6 +241,25 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
 
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<FileEntry | null>(null);
+
+  // Batch delete state
+  const [batchSelectionMode, setBatchSelectionMode] = useState(false);
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+  const [showBatchConfirm, setShowBatchConfirm] = useState(false);
+  const [batchDeleting, setBatchDeleting] = useState(false);
+  const [confirmItems, setConfirmItems] = useState<ConfirmItem[]>([]);
+  const [expandedConfirmPaths, setExpandedConfirmPaths] = useState<Set<string>>(new Set());
+
+  // Long press state for batch selection
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const LONG_PRESS_DURATION = 500; // ms
+
+  // Exit batch selection mode when navigating to a different directory
+  useEffect(() => {
+    setBatchSelectionMode(false);
+    setSelectedPaths(new Set());
+    setShowBatchConfirm(false);
+  }, [currentPath]);
 
   // Platform state for context menu labels
   const [platform, setPlatform] = useState<string>("macos");
@@ -228,6 +293,243 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
       return () => document.removeEventListener("mousedown", handler);
     }
   }, [ctxMenu]);
+
+  // ─── Batch delete handlers ───────────────────────────────────────────────────
+  const exitSelectionMode = useCallback(() => {
+    setBatchSelectionMode(false);
+    setSelectedPaths(new Set());
+    setShowBatchConfirm(false);
+  }, []);
+
+  const toggleSelection = useCallback((entry: FileEntry) => {
+    setSelectedPaths((prev) => {
+      const next = new Set(prev);
+      if (next.has(entry.path)) {
+        next.delete(entry.path);
+      } else {
+        next.add(entry.path);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedPaths((prev) => {
+      if (prev.size === entries.length) {
+        return new Set();
+      }
+      return new Set(entries.map((e) => e.path));
+    });
+  }, [entries]);
+
+  const buildConfirmItems = useCallback((): ConfirmItem[] => {
+    return entries
+      .filter((e) => selectedPaths.has(e.path))
+      .map((e) => ({ entry: e, expanded: false, children: e.isDir ? undefined : [], loading: false, userModified: false }));
+  }, [entries, selectedPaths]);
+
+  const handleOpenBatchConfirm = useCallback(() => {
+    if (selectedPaths.size === 0) return;
+    setConfirmItems(buildConfirmItems());
+    setExpandedConfirmPaths(new Set());
+    setShowBatchConfirm(true);
+  }, [selectedPaths, buildConfirmItems]);
+
+  const loadConfirmChildren = useCallback(
+    async (path: string) => {
+      // Set loading state by path
+      const setLoading = (items: ConfirmItem[]): ConfirmItem[] =>
+        items.map((item) => {
+          if (item.entry.path === path) return { ...item, loading: true };
+          if (item.children) return { ...item, children: setLoading(item.children) };
+          return item;
+        });
+      setConfirmItems((prev) => setLoading(prev));
+
+      try {
+        const children = await listDirectory(path);
+        const childItems: ConfirmItem[] = children.map((c) => ({
+          entry: c,
+          expanded: false,
+          children: c.isDir ? undefined : [],
+          loading: false,
+          userModified: false,
+        }));
+
+        const setChildren = (items: ConfirmItem[]): ConfirmItem[] =>
+          items.map((item) => {
+            if (item.entry.path === path) {
+              return { ...item, children: childItems, loading: false, expanded: true };
+            }
+            if (item.children) return { ...item, children: setChildren(item.children) };
+            return item;
+          });
+        setConfirmItems((prev) => setChildren(prev));
+      } catch (e) {
+        console.error("Failed to load directory children:", e);
+        const clearLoading = (items: ConfirmItem[]): ConfirmItem[] =>
+          items.map((item) => {
+            if (item.entry.path === path) return { ...item, loading: false };
+            if (item.children) return { ...item, children: clearLoading(item.children) };
+            return item;
+          });
+        setConfirmItems((prev) => clearLoading(prev));
+      }
+    },
+    [],
+  );
+
+  const toggleConfirmExpand = useCallback(
+    async (path: string) => {
+      const isExpanding = !expandedConfirmPaths.has(path);
+
+      setExpandedConfirmPaths((prev) => {
+        const next = new Set(prev);
+        if (isExpanding) next.add(path);
+        else next.delete(path);
+        return next;
+      });
+
+      if (!isExpanding) {
+        // Collapse: update expanded flag in items
+        const collapse = (items: ConfirmItem[]): ConfirmItem[] =>
+          items.map((item) => {
+            if (item.entry.path === path) return { ...item, expanded: false };
+            if (item.children) return { ...item, children: collapse(item.children) };
+            return item;
+          });
+        setConfirmItems((prev) => collapse(prev));
+      } else {
+        // Expand: check if children are loaded
+        const findItem = (items: ConfirmItem[]): ConfirmItem | undefined => {
+          for (const item of items) {
+            if (item.entry.path === path) return item;
+            if (item.children) {
+              const found = findItem(item.children);
+              if (found) return found;
+            }
+          }
+          return undefined;
+        };
+
+        const item = findItem(confirmItems);
+        if (item && item.children === undefined && item.entry.isDir) {
+          // Need to load children
+          await loadConfirmChildren(path);
+        } else if (item && item.children !== undefined) {
+          // Already loaded, just mark expanded
+          const expand = (items: ConfirmItem[]): ConfirmItem[] =>
+            items.map((it) => {
+              if (it.entry.path === path) return { ...it, expanded: true };
+              if (it.children) return { ...it, children: expand(it.children) };
+              return it;
+            });
+          setConfirmItems((prev) => expand(prev));
+        }
+      }
+    },
+    [expandedConfirmPaths, confirmItems, loadConfirmChildren],
+  );
+
+  const removeConfirmItem = useCallback((path: string) => {
+    // Remove from confirm items tree and mark parent directories as userModified
+    const removeFromTree = (items: ConfirmItem[]): ConfirmItem[] => {
+      return items
+        .filter((item) => item.entry.path !== path)
+        .map((item) => ({
+          ...item,
+          children: item.children ? removeFromTree(item.children) : undefined,
+        }));
+    };
+
+    // Check if any directory had the removed item as a child (mark as userModified)
+    const markModified = (items: ConfirmItem[]): ConfirmItem[] => {
+      return items.map((item) => {
+        if (item.children) {
+          const hadChild = item.children.some((c) => c.entry.path === path);
+          const updatedChildren = markModified(item.children);
+          return {
+            ...item,
+            userModified: hadChild ? true : item.userModified,
+            children: updatedChildren,
+          };
+        }
+        return item;
+      });
+    };
+
+    setConfirmItems((prev) => {
+      const marked = markModified(prev);
+      return removeFromTree(marked);
+    });
+    // Also uncheck in selectedPaths
+    setSelectedPaths((prev) => {
+      const next = new Set(prev);
+      next.delete(path);
+      return next;
+    });
+  }, []);
+
+  const executeBatchDelete = useCallback(async () => {
+    // Collect paths to delete from confirmItems, respecting user intent:
+    // - Directory NOT expanded or NOT user-modified → delete entire directory
+    // - Directory expanded AND user removed some children → only delete remaining children, keep directory
+    // - Directory expanded AND all children removed → delete directory itself
+    // - File → always delete directly
+    const collectPaths = (items: ConfirmItem[]): string[] => {
+      const paths: string[] = [];
+      for (const item of items) {
+        if (item.entry.isDir) {
+          if (item.userModified && item.children !== undefined && item.children.length > 0) {
+            // User explicitly removed some children — only delete remaining children
+            paths.push(...collectPaths(item.children));
+          } else {
+            // Not modified, not expanded, or all children removed — delete directory itself
+            paths.push(item.entry.path);
+          }
+        } else {
+          paths.push(item.entry.path);
+        }
+      }
+      return paths;
+    };
+
+    const pathsToDelete = collectPaths(confirmItems);
+    if (pathsToDelete.length === 0) return;
+
+    setBatchDeleting(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const p of pathsToDelete) {
+      try {
+        await deletePath(p, getSafeMode());
+        successCount++;
+      } catch (e) {
+        console.error("Failed to delete:", p, e);
+        failCount++;
+      }
+    }
+
+    setBatchDeleting(false);
+    setShowBatchConfirm(false);
+    exitSelectionMode();
+    refresh();
+
+    if (failCount === 0) {
+      toast.success(t("disk.batch.delete_success").replace("{count}", String(successCount)));
+    } else {
+      toast.error(
+        t("disk.batch.delete_partial")
+          .replace("{success}", String(successCount))
+          .replace("{fail}", String(failCount)),
+      );
+    }
+  }, [confirmItems, exitSelectionMode, refresh, toast, t]);
+
+  // Compute batch confirm totals
+  const confirmTotalCount = confirmItems.length;
+  const confirmTotalSize = confirmItems.reduce((s, item) => s + item.entry.size, 0);
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, entry: FileEntry) => {
@@ -307,7 +609,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
 
   const usedPct = diskUsage ? Math.round((diskUsage.used / diskUsage.total) * 100) : 0;
   const currentPathSize = entries.reduce((s, e) => s + e.size, 0);
-  
+
   // Parent size must be at least the current path size since current is a sub-directory
   const safeParentSize = Math.max(currentPathSize, parentPathSize);
 
@@ -326,7 +628,35 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
   const parentColors: LevelColor = { bg: "bg-indigo-500", text: "text-indigo-400" };
   const currentColors: LevelColor = { bg: "bg-purple-500", text: "text-purple-400" };
 
+  // ─── Long press handlers for batch selection ─────────────────────────────
+  const clearLongPressTimer = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const handleLongPressStart = useCallback((entry: FileEntry) => {
+    // Don't trigger if already in batch mode
+    if (batchSelectionMode) return;
+    
+    // Start timer
+    longPressTimerRef.current = setTimeout(() => {
+      setBatchSelectionMode(true);
+      setSelectedPaths(new Set([entry.path]));
+      longPressTimerRef.current = null;
+    }, LONG_PRESS_DURATION);
+  }, [batchSelectionMode]);
+
+  const handleLongPressCancel = useCallback(() => {
+    clearLongPressTimer();
+  }, [clearLongPressTimer]);
+
   const breadcrumbs = buildBreadcrumbSegments(currentPath, platform, t);
+
+  const visibleEntries = showHiddenFiles
+    ? entries
+    : entries.filter((e) => !isHiddenEntry(e, platform));
 
   const sortLabel: Record<SortField, string> = {
     name: t("disk.table.header.name"),
@@ -377,7 +707,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
         </h2>
         <button
           onClick={refresh}
-          className="px-3 py-1.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-colors flex items-center gap-2"
+          className="px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 text-white transition-all flex items-center gap-2 shadow-lg shadow-black/20 active:scale-[0.98]"
         >
           <IconRefresh /> {t("disk.action.refresh")}
         </button>
@@ -490,6 +820,56 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
             </span>
           ))}
         </nav>
+        {/* Show hidden files toggle */}
+        <button
+          onClick={() => setShowHiddenFiles((v) => !v)}
+          className={`shrink-0 p-1.5 rounded-lg transition-colors ${
+            showHiddenFiles
+              ? "text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+              : "text-gray-500 hover:text-gray-300 hover:bg-gray-800"
+          }`}
+          title={showHiddenFiles ? t("disk.hidden.hide") : t("disk.hidden.show")}
+        >
+          {showHiddenFiles ? <Eye size={16} /> : <EyeOff size={16} />}
+        </button>
+        {/* Batch selection controls */}
+        {batchSelectionMode && (
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs text-gray-500">
+              {t("disk.batch.selected_count").replace("{count}", String(selectedPaths.size))}
+            </span>
+            <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer select-none hover:text-white transition-colors" onClick={toggleSelectAll}>
+              {selectedPaths.size === entries.length && entries.length > 0 ? (
+                <CheckSquare size={16} className="text-blue-400" />
+              ) : (
+                <Square size={16} className="text-gray-500" />
+              )}
+              <span>{t("disk.batch.select_all")}</span>
+            </label>
+            <button
+              onClick={handleOpenBatchConfirm}
+              disabled={selectedPaths.size === 0}
+              className="shrink-0 px-4 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white transition-all flex items-center gap-1.5 shadow-lg shadow-red-500/15 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+            >
+              <IconTrash size={14} /> {t("disk.menu.delete_label")}
+            </button>
+            <button
+              onClick={exitSelectionMode}
+              className="shrink-0 px-4 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 text-white transition-all flex items-center gap-1.5 shadow-lg shadow-black/20 active:scale-[0.98]"
+            >
+              {t("disk.batch.cancel_selection")}
+            </button>
+          </div>
+        )}
+        {/* Delete button (enter batch selection mode) */}
+        {!batchSelectionMode && entries.length > 0 && (
+          <button
+            onClick={() => setBatchSelectionMode(true)}
+            className="shrink-0 px-4 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white transition-all flex items-center gap-1.5 shadow-lg shadow-red-500/15 active:scale-[0.98]"
+          >
+            <IconTrash size={14} /> {t("disk.batch.delete_button")}
+          </button>
+        )}
       </div>
 
       {/* Error */}
@@ -543,7 +923,20 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
       ) : (
         <div className="rounded-xl bg-gray-800/40 border border-gray-700/30 overflow-hidden">
           {/* Table header */}
-          <div className="grid grid-cols-[1fr_100px_120px] gap-2 px-4 py-2.5 text-xs font-medium border-b border-gray-700/40 bg-gray-900/40 select-none">
+          <div className={`grid gap-2 px-4 py-2.5 text-xs font-medium border-b border-gray-700/40 bg-gray-900/40 select-none ${
+            batchSelectionMode ? "grid-cols-[28px_1fr_100px_120px]" : "grid-cols-[1fr_100px_120px]"
+          }`}>
+            {batchSelectionMode && (
+              <div className="flex items-center justify-center">
+                <button onClick={toggleSelectAll} className="text-gray-500 hover:text-gray-300 transition-colors">
+                  {selectedPaths.size === entries.length && entries.length > 0 ? (
+                    <CheckSquare size={15} className="text-blue-400" />
+                  ) : (
+                    <Square size={15} />
+                  )}
+                </button>
+              </div>
+            )}
             {(Object.keys(sortLabel) as SortField[]).map((field) => (
               <button
                 key={field}
@@ -564,69 +957,104 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
 
           {/* Rows */}
           <div className="max-h-[calc(100vh-380px)] overflow-y-auto custom-scrollbar">
-            {entries.map((entry) => (
-              <div
-                key={entry.path}
-                onClick={() => handleRowClick(entry)}
-                onContextMenu={(e) => handleContextMenu(e, entry)}
-                className={`grid grid-cols-[1fr_100px_120px] gap-2 px-4 py-3 text-sm items-center transition-colors border-b border-gray-700/20 last:border-b-0 ${
-                  entry.isDir
+            {visibleEntries.map((entry) => {
+              return (
+                <div
+                  key={entry.path}
+                className={`grid gap-2 px-4 py-3 text-sm items-center transition-colors border-b border-gray-700/20 last:border-b-0 ${
+                  batchSelectionMode
+                    ? "grid-cols-[28px_1fr_100px_120px]"
+                    : "grid-cols-[1fr_100px_120px]"
+                } ${
+                  entry.isDir && !batchSelectionMode
                     ? "cursor-pointer hover:bg-gray-700/30"
-                    : "cursor-default hover:bg-gray-700/20"
+                    : batchSelectionMode
+                      ? "cursor-pointer hover:bg-gray-700/30"
+                      : "cursor-default hover:bg-gray-700/20"
+                } ${
+                  selectedPaths.has(entry.path) ? "bg-blue-500/10" : ""
                 }`}
+                // Long press handlers (touch devices)
+                onTouchStart={() => handleLongPressStart(entry)}
+                onTouchMove={handleLongPressCancel}
+                onTouchEnd={handleLongPressCancel}
+                onMouseDown={() => handleLongPressStart(entry)}
+                onMouseUp={handleLongPressCancel}
+                onMouseLeave={handleLongPressCancel}
+                onClick={() => {
+                  if (batchSelectionMode) {
+                    toggleSelection(entry);
+                  } else {
+                    handleRowClick(entry);
+                  }
+                }}
+                onContextMenu={(e) => {
+                  if (!batchSelectionMode) handleContextMenu(e, entry);
+                }}
               >
-                {/* Name */}
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-base shrink-0 text-gray-400 relative inline-flex items-center justify-center">
-                    {entry.isDir ? <IconFolder /> : <IconFile />}
-                    {entry.isSymlink && (
-                      <div className="absolute -bottom-1 -left-1 bg-slate-900/90 text-blue-400 border border-blue-500/50 rounded-[3px] p-[1px] shadow-md flex items-center justify-center" title={t("disk.table.symlink_tooltip")}>
-                        <svg className="w-2 h-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="7" y1="17" x2="17" y2="7"></line>
-                          <polyline points="7 7 17 7 17 17"></polyline>
-                        </svg>
+                {/* Checkbox */}
+                {batchSelectionMode && (
+                      <div className="flex items-center justify-center">
+                        {selectedPaths.has(entry.path) ? (
+                          <CheckSquare size={16} className="text-blue-400" />
+                        ) : (
+                          <Square size={16} className="text-gray-500" />
+                        )}
                       </div>
                     )}
-                  </span>
-                  <span
-                    className={`truncate ${entry.isDir ? "text-blue-300 font-medium" : "text-gray-200"}`}
-                    title={entry.path}
-                  >
-                    {entry.name}
-                  </span>
-                  {entry.isWhitelisted && (
-                    <span title={t("disk.table.whitelisted_tip")} className="flex items-center shrink-0">
-                      <ShieldCheck size={14} className="text-emerald-400" />
-                    </span>
-                  )}
-                  {entry.isDir && entry.childrenCount !== null && (
-                    <span className="text-xs text-gray-600 shrink-0">
-                      {t("scan.status.items_count").replace("{count}", String(entry.childrenCount))}
-                    </span>
-                  )}
-                </div>
+                    {/* Name */}
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-base shrink-0 text-gray-400 relative inline-flex items-center justify-center">
+                        {entry.isDir ? <IconFolder /> : <IconFile />}
+                        {entry.isSymlink && (
+                          <div className="absolute -bottom-1 -left-1 bg-slate-900/90 text-blue-400 border border-blue-500/50 rounded-[3px] p-[1px] shadow-md flex items-center justify-center" title={t("disk.table.symlink_tooltip")}>
+                            <svg className="w-2 h-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="7" y1="17" x2="17" y2="7"></line>
+                              <polyline points="7 7 17 7 17 17"></polyline>
+                            </svg>
+                          </div>
+                        )}
+                      </span>
+                      <span
+                        className={`truncate ${entry.isDir ? "text-blue-600 font-medium" : "text-gray-200"}`}
+                        title={entry.path}
+                      >
+                        {entry.name}
+                      </span>
+                      {entry.isWhitelisted && (
+                        <span title={t("disk.table.whitelisted_tip")} className="flex items-center shrink-0">
+                          <ShieldCheck size={14} className="text-emerald-400" />
+                        </span>
+                      )}
+                      {entry.isDir && entry.childrenCount !== null && (
+                        <span className="text-xs text-gray-600 shrink-0">
+                          {t("scan.status.items_count").replace("{count}", String(entry.childrenCount))}
+                        </span>
+                      )}
+                    </div>
 
-                {/* Size */}
-                <span className="text-right text-gray-400 text-xs">
-                  {entry.isDir && entry.calculating ? (
-                    <span className="text-blue-400/80 animate-pulse">{t("disk.table.calculating")}</span>
-                  ) : (
-                    formatFileSize(entry.size)
-                  )}
-                </span>
+                    {/* Size */}
+                    <span className="text-right text-gray-400 text-xs">
+                      {entry.isDir && entry.calculating ? (
+                        <span className="text-blue-400/80 animate-pulse">{t("disk.table.calculating")}</span>
+                      ) : (
+                        formatFileSize(entry.size)
+                      )}
+                    </span>
 
-                {/* Modified */}
-                <span className="text-right text-gray-500 text-xs">
-                  {formatRelativeTime(entry.modified, t)}
-                </span>
-              </div>
-            ))}
+                    {/* Modified */}
+                    <span className="text-right text-gray-500 text-xs">
+                      {formatRelativeTime(entry.modified, t)}
+                    </span>
+                  </div>
+              );
+            })}
           </div>
 
           {/* Footer */}
           <div className="px-4 py-2 border-t border-gray-700/30 text-xs text-gray-600 flex justify-between">
-            <span>{t("scan.status.items_count").replace("{count}", String(entries.length))}</span>
-            <span>{formatFileSize(entries.reduce((s, e) => s + e.size, 0))}</span>
+            <span>{t("scan.status.items_count").replace("{count}", String(visibleEntries.length))}</span>
+            <span>{formatFileSize(visibleEntries.reduce((s, e) => s + e.size, 0))}</span>
           </div>
         </div>
       )}
@@ -750,7 +1178,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
                 onClick={async () => {
                   if (deleteTarget) {
                     try {
-                      const success = await deletePath(deleteTarget.path);
+                      const success = await deletePath(deleteTarget.path, getSafeMode());
                       if (success) {
                         refresh();
                       }
@@ -766,6 +1194,157 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {/* Batch delete confirmation modal */}
+      {showBatchConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="w-full max-w-lg mx-4 p-5 rounded-xl bg-gray-800 border border-gray-700/60 shadow-2xl max-h-[80vh] flex flex-col">
+            <h3 className="text-base font-semibold text-white mb-2 flex items-center gap-2 shrink-0">
+              <IconAlert className="text-yellow-500" /> {t("disk.batch.confirm_title")}
+            </h3>
+            <p className="text-sm text-gray-400 mb-3 shrink-0">
+              {t("disk.batch.confirm_message").replace("{count}", String(confirmTotalCount))}
+            </p>
+            <p className="text-xs text-blue-400 mb-3 shrink-0">
+              {t("disk.batch.confirm_selected").replace("{count}", String(confirmTotalCount)).replace("{size}", formatFileSize(confirmTotalSize))}
+            </p>
+            {/* Scrollable item list */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar border border-gray-700/40 rounded-lg bg-gray-900/40 mb-4">
+              {confirmItems.length === 0 ? (
+                <div className="px-4 py-6 text-center text-gray-500 text-sm">{t("disk.table.empty")}</div>
+              ) : (
+                confirmItems.map((item) => (
+                  <ConfirmTreeItem
+                    key={item.entry.path}
+                    item={item}
+                    depth={0}
+                    expandedPaths={expandedConfirmPaths}
+                    onToggleExpand={toggleConfirmExpand}
+                    onRemove={removeConfirmItem}
+                    t={t}
+                  />
+                ))
+              )}
+            </div>
+            <div className="flex justify-end gap-2 shrink-0">
+              <button
+                onClick={() => setShowBatchConfirm(false)}
+                disabled={batchDeleting}
+                className="px-4 py-1.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-gray-700 transition-colors disabled:opacity-50"
+              >
+                {t("modal.cancel")}
+              </button>
+              <button
+                onClick={executeBatchDelete}
+                disabled={batchDeleting || confirmItems.length === 0}
+                className="px-4 py-1.5 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-500 disabled:opacity-50 transition-colors flex items-center gap-2"
+              >
+                {batchDeleting && <IconLoader className="animate-spin" size={14} />}
+                {batchDeleting ? t("disk.batch.deleting") : t("modal.confirm")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Confirm tree item component ──────────────────────────────────────────────
+
+interface ConfirmTreeItemProps {
+  item: ConfirmItem;
+  depth: number;
+  expandedPaths: Set<string>;
+  onToggleExpand: (path: string) => void;
+  onRemove: (path: string) => void;
+  t: (key: string) => string;
+}
+
+function ConfirmTreeItem({
+  item,
+  depth,
+  expandedPaths,
+  onToggleExpand,
+  onRemove,
+  t,
+}: ConfirmTreeItemProps) {
+  const isExpanded = expandedPaths.has(item.entry.path);
+  const hasChildren = item.entry.isDir;
+
+  return (
+    <div>
+      <div
+        className={`flex items-center gap-2 px-3 py-2 hover:bg-gray-700/30 transition-colors border-b border-gray-700/20 ${
+          depth > 0 ? "bg-gray-800/30" : ""
+        }`}
+        style={{ paddingLeft: `${12 + depth * 20}px` }}
+      >
+        {/* Expand/collapse for directories */}
+        {hasChildren ? (
+          <button
+            onClick={() => onToggleExpand(item.entry.path)}
+            className="shrink-0 p-0.5 rounded hover:bg-gray-600/40 transition-colors"
+          >
+            <ChevronDown
+              size={14}
+              className={`text-gray-400 transition-transform ${isExpanded ? "" : "-rotate-90"}`}
+            />
+          </button>
+        ) : (
+          <span className="w-4 shrink-0" />
+        )}
+        {/* Icon */}
+        <span className="text-gray-400 shrink-0">
+          {item.entry.isDir ? <IconFolder size={16} /> : <IconFile size={16} />}
+        </span>
+        {/* Name and size */}
+        <div className="flex-1 min-w-0 flex items-center gap-2">
+          <span className={`truncate text-sm ${item.entry.isDir ? "text-blue-600" : "text-gray-200"}`}>
+            {item.entry.name}
+          </span>
+          <span className="text-xs text-gray-500 shrink-0">
+            {formatFileSize(item.entry.size)}
+          </span>
+        </div>
+        {/* Remove button */}
+        <button
+          onClick={() => onRemove(item.entry.path)}
+          className="shrink-0 p-1 rounded text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+          title={t("modal.cancel")}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+      {/* Expanded children */}
+      {isExpanded && item.entry.isDir && (
+        <div>
+          {item.loading ? (
+            <div className="flex items-center gap-2 px-4 py-3 text-xs text-gray-500" style={{ paddingLeft: `${32 + depth * 20}px` }}>
+              <IconLoader className="animate-spin" size={12} />
+              {t("disk.table.calculating")}
+            </div>
+          ) : item.children && item.children.length > 0 ? (
+            item.children.map((child) => (
+              <ConfirmTreeItem
+                key={child.entry.path}
+                item={child}
+                depth={depth + 1}
+                expandedPaths={expandedPaths}
+                onToggleExpand={onToggleExpand}
+                onRemove={onRemove}
+                t={t}
+              />
+            ))
+          ) : (
+            <div className="px-4 py-2 text-xs text-gray-600" style={{ paddingLeft: `${32 + depth * 20}px` }}>
+              {t("disk.table.empty")}
+            </div>
+          )}
         </div>
       )}
     </div>

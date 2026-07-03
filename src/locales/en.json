@@ -26,6 +26,9 @@
   "settings.general.deepScan": "Deep Scan Mode",
   "settings.general.deepScan.badge": "Time-consuming",
   "settings.general.deepScan.desc": "Perform thorough directory traversal to find hidden cache residues",
+  "settings.general.safeMode": "Safe Delete Mode",
+  "settings.general.safeMode.badge": "Recommended",
+  "settings.general.safeMode.desc": "Move files to Trash instead of permanent deletion. Applies to scan cleanup, disk analysis deletion, and app uninstall. Files can be recovered from Trash if deleted by mistake.",
   "settings.general.theme": "Interface Theme",
   "settings.general.theme.desc": "Switch the appearance style of the interface",
   "settings.general.theme.light": "Light",
@@ -431,6 +434,20 @@
   "disk.table.symlink_tooltip": "Shortcut / Symlink",
   "disk.menu.delete_label": "Delete",
   "disk.error.delete_alert": "Failed to delete: {error}",
+
+  "disk.batch.delete_button": "Delete",
+  "disk.batch.select_all": "Select All",
+  "disk.batch.selected_count": "Selected {count} items",
+  "disk.batch.confirm_title": "Confirm Batch Delete",
+  "disk.batch.confirm_message": "The following {count} files/directories will be permanently deleted. This action cannot be undone.",
+  "disk.batch.confirm_selected": "Will delete {count} items, total {size}",
+  "disk.batch.deleting": "Deleting...",
+  "disk.batch.delete_success": "Successfully deleted {count} items",
+  "disk.batch.delete_partial": "Deletion complete, {success} succeeded, {fail} failed",
+  "disk.batch.cancel_selection": "Cancel Selection",
+  
+  "disk.hidden.show": "Show hidden files",
+  "disk.hidden.hide": "Hide hidden files",
 
   "uninstall.tooltip.refresh": "Refresh app list",
 

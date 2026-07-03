@@ -36,6 +36,7 @@ export interface UseUninstallStreamReturn {
     app: InstalledApp,
     mode: UninstallMode,
     residualPaths: string[],
+    safeMode?: boolean,
   ) => Promise<void>;
   cancelOperation: () => Promise<void>;
   resetToSelect: () => void;
@@ -199,6 +200,7 @@ export function useUninstallStream(): UseUninstallStreamReturn {
       app: InstalledApp,
       mode: UninstallMode,
       residualPaths: string[],
+      safeMode?: boolean,
     ) => {
       setPhase("uninstalling");
       setError(null);
@@ -208,7 +210,7 @@ export function useUninstallStream(): UseUninstallStreamReturn {
       );
       opIdRef.current = null;
       try {
-        const { op_id } = await ipcUninstallApp(app, mode, residualPaths);
+        const { op_id } = await ipcUninstallApp(app, mode, residualPaths, safeMode);
         opIdRef.current = op_id;
       } catch (err) {
         setError(String(err));

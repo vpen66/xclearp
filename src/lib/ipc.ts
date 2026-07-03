@@ -11,9 +11,11 @@ export async function startScan(ruleIds: string[]): Promise<{ op_id: string }> {
   return invoke<{ op_id: string }>("start_scan", { ruleIds: ruleIds });
 }
 
-/** Start cleaning the given targets. Returns the operation ID. */
-export async function startClean(targets: ScanTarget[]): Promise<{ op_id: string }> {
-  return invoke<{ op_id: string }>("start_clean", { targets });
+/** Start cleaning the given targets. Returns the operation ID.
+ *  When safeMode is true, files are moved to trash instead of being permanently deleted.
+ */
+export async function startClean(targets: ScanTarget[], safeMode?: boolean): Promise<{ op_id: string }> {
+  return invoke<{ op_id: string }>("start_clean", { targets, safeMode: safeMode ?? true });
 }
 
 /** Cancel an ongoing operation by its ID. */
@@ -79,9 +81,11 @@ export async function updateWhitelist(whitelist: Whitelist): Promise<boolean> {
   return invoke<boolean>("update_whitelist", { whitelist });
 }
 
-/** Delete a file or directory at the specified path. */
-export async function deletePath(path: string): Promise<boolean> {
-  return invoke<boolean>("delete_path", { path });
+/** Delete a file or directory at the specified path.
+ *  When safeMode is true, files are moved to trash instead of being permanently deleted.
+ */
+export async function deletePath(path: string, safeMode?: boolean): Promise<boolean> {
+  return invoke<boolean>("delete_path", { path, safeMode: safeMode ?? true });
 }
 
 /** List directory contents. */
@@ -189,16 +193,20 @@ export async function scanApp(app: InstalledApp): Promise<AppFileGroup[]> {
   return invoke<AppFileGroup[]>("scan_app", { app });
 }
 
-/** Uninstall an application with the specified mode. */
+/** Uninstall an application with the specified mode.
+ *  When safeMode is true, residual files are moved to trash instead of being permanently deleted.
+ */
 export async function uninstallApp(
   app: InstalledApp,
   mode: UninstallMode,
   residualPaths: string[],
+  safeMode?: boolean,
 ): Promise<{ op_id: string }> {
   return invoke<{ op_id: string }>("uninstall_app", {
     app,
     mode,
     residualPaths,
+    safeMode: safeMode ?? true,
   });
 }
 
