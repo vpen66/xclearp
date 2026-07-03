@@ -17,6 +17,8 @@
 #     Total CI time is typically < 3 minutes, so parallelism has minimal benefit.
 #   - Linux-only: Rust format/clippy/test and TS checks are platform-independent.
 #     Multi-platform compilation is validated in Release workflow only.
+#   - Cross-compile check for Windows is included to catch Windows-specific
+#     code errors (e.g., wrong API field names) early before release builds.
 #   - Linux system deps installed for Tauri: cargo clippy/test need to compile
 #     Tauri which depends on webkit2gtk and other system libraries.
 # =============================================================================
@@ -98,6 +100,18 @@ jobs:
       - name: 'Rust: Clippy lint analysis'
         working-directory: src-tauri
         run: cargo clippy --all-targets --all-features -- -D warnings
+
+      # Cross-compile check for Windows target.
+      # Catches Windows-specific code errors (wrong field names, missing imports,
+      # type mismatches in #[cfg(target_os = "windows")] guarded code) that
+      # clippy on Linux cannot see because those blocks are not compiled natively.
+      # mingw-w64 provides the linker; build.rs mocks llvm-rc for tauri-winres.
+      - name: 'Rust: Cross-compile check (Windows)'
+        working-directory: src-tauri
+        run: |
+          sudo apt-get install -y mingw-w64
+          rustup target add x86_64-pc-windows-gnu
+          cargo check --target x86_64-pc-windows-gnu
 
       # Run all unit and integration tests.
       - name: 'Rust: Run tests'
