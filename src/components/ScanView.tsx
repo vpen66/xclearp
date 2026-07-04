@@ -342,7 +342,7 @@ export default function ScanView({
               toggleFile(node.path);
             }
           }}
-          className="flex items-center gap-3 px-4 py-1.5 hover:bg-gray-850/30 transition-colors cursor-pointer select-none group/file-row"
+          className="flex items-center gap-3 px-4 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer select-none group/file-row"
           style={{ paddingLeft: `${depth * 16 + 16}px` }}
         >
           {isSelectMode && (
@@ -350,7 +350,7 @@ export default function ScanView({
               className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 transition-colors ${
                 isFileSelected
                   ? "bg-blue-600 border-blue-600 shadow-sm shadow-blue-500/10"
-                  : "border-gray-700 bg-gray-950/10 group-hover/file-row:border-gray-600"
+                  : "border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-800 group-hover/file-row:border-gray-500 dark:group-hover/file-row:border-gray-500"
               }`}
             >
               {isFileSelected && (
@@ -362,12 +362,12 @@ export default function ScanView({
           )}
 
           <FileText className={`w-3.5 h-3.5 shrink-0 transition-colors ${
-            isFileSelected && isSelectMode ? "text-blue-400" : "text-gray-500 group-hover/file-row:text-gray-400"
+            isFileSelected && isSelectMode ? "text-blue-500" : "text-gray-500 dark:text-gray-400 group-hover/file-row:text-gray-700 dark:group-hover/file-row:text-gray-300"
           }`} />
 
           <span
             className={`text-xs font-medium truncate flex-1 transition-colors ${
-              isFileSelected && isSelectMode ? "text-blue-300" : "text-gray-200 group-hover/file-row:text-white"
+              isFileSelected && isSelectMode ? "text-blue-600 dark:text-blue-400" : "text-gray-900 dark:text-gray-100 group-hover/file-row:text-black dark:group-hover/file-row:text-white"
             }`}
             title={node.path}
           >
@@ -376,8 +376,8 @@ export default function ScanView({
 
           <span className={`text-[9px] font-mono shrink-0 px-2 py-0.5 rounded border transition-all ${
             isFileSelected && isSelectMode
-              ? "text-blue-300 bg-blue-950/20 border-blue-900/30"
-              : "text-gray-400 bg-gray-900/40 border-gray-800/60 group-hover/file-row:border-gray-700/60 group-hover/file-row:text-gray-300"
+              ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900/30"
+              : "text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover/file-row:border-gray-300 dark:group-hover/file-row:border-gray-600 group-hover/file-row:text-gray-700 dark:group-hover/file-row:text-gray-300"
           }`}>
             {formatFileSize(node.size)}
           </span>
@@ -400,7 +400,7 @@ export default function ScanView({
           {/* Folder Row */}
           <div
             onClick={() => toggleFolderExpand(groupId, node.path)}
-            className="flex items-center gap-3 px-4 py-2 hover:bg-gray-850/15 transition-colors cursor-pointer select-none group/folder-row border-b border-gray-900/10"
+            className="flex items-center gap-3 px-4 py-2 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer select-none group/folder-row border-b border-gray-200 dark:border-gray-700"
             style={{ paddingLeft: `${depth * 16 + 16}px` }}
           >
             {isSelectMode && (
@@ -428,7 +428,7 @@ export default function ScanView({
               </button>
             )}
 
-            <span className="text-gray-500 group-hover/folder-row:text-gray-400 transition-colors">
+            <span className="text-gray-600 dark:text-gray-400 group-hover/folder-row:text-gray-800 dark:group-hover/folder-row:text-gray-200 transition-colors">
               {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             </span>
 
@@ -439,7 +439,7 @@ export default function ScanView({
             <div className="flex-1 min-w-0 flex flex-col py-0.5">
               <span
                 className={`text-xs font-semibold truncate transition-colors ${
-                  isFolderSomeSelected && isSelectMode ? "text-blue-300" : "text-gray-200 group-hover/folder-row:text-white"
+                  isFolderSomeSelected && isSelectMode ? "text-blue-300" : "text-gray-900 dark:text-gray-100"
                 }`}
                 title={node.path}
               >
@@ -450,7 +450,7 @@ export default function ScanView({
             <span className={`text-[10px] font-mono font-bold shrink-0 px-2 py-0.5 rounded border transition-all ${
               isFolderSomeSelected && isSelectMode
                 ? "text-blue-300 bg-blue-950/20 border-blue-900/30"
-                : "text-gray-400 bg-gray-900/40 border-gray-800/60 group-hover/folder-row:border-gray-700/60 group-hover/folder-row:text-gray-300"
+                : "text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover/folder-row:border-gray-300 dark:group-hover/folder-row:border-gray-600 group-hover/folder-row:text-gray-600 dark:group-hover/folder-row:text-gray-300"
             }`}>
               {formatFileSize(node.size)}
             </span>
@@ -458,7 +458,7 @@ export default function ScanView({
 
           {/* Children List */}
           {isExpanded && (
-            <div className="flex flex-col bg-gray-950/5">
+            <div className="flex flex-col bg-white dark:bg-gray-950">
               {displayedChildren.map((child) => renderTreeNode(child, groupId, depth + 1))}
               {node.children.length > 100 && !isShowAll && (
                 <button
@@ -466,7 +466,7 @@ export default function ScanView({
                     e.stopPropagation();
                     toggleShowAllFolderFiles(groupId, node.path);
                   }}
-                  className="w-full flex items-center justify-center py-2 bg-gray-900/10 hover:bg-gray-900/20 text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors border-t border-gray-850/10"
+                  className="w-full flex items-center justify-center py-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-xs font-semibold text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors border-t border-gray-200 dark:border-gray-700"
                   style={{ paddingLeft: `${(depth + 1) * 16 + 16}px` }}
                 >
                   {t("scan.folder.more_items").replace("{count}", String(node.children.length - 100))}
@@ -816,7 +816,7 @@ export default function ScanView({
 
                   {/* Folders and Files list */}
                   {isExpanded && (
-                    <div className="max-h-120 overflow-y-auto custom-scrollbar bg-gray-950/15 divide-y divide-gray-900/40">
+                    <div className="max-h-120 overflow-y-auto custom-scrollbar bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                       {groupFolders.map(({ folderPath, folderFiles, folderSize }) => {
                         const isFolderExpanded = expandedFolders.has(`${groupId}::${folderPath}`);
                         const isFolderAllSelected = folderFiles.every((f) => selectedPaths.has(f.path));
@@ -830,7 +830,7 @@ export default function ScanView({
                             {/* Top-level Root Folder row */}
                             <div
                               onClick={() => toggleFolderExpand(groupId, folderPath)}
-                              className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-850/15 transition-colors cursor-pointer select-none group/folder-row border-b border-gray-900/10"
+                              className="flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer select-none group/folder-row border-b border-gray-200 dark:border-gray-700"
                             >
                               {isSelectMode && (
                                 <button
@@ -857,7 +857,7 @@ export default function ScanView({
                                 </button>
                               )}
 
-                              <span className="text-gray-500 group-hover/folder-row:text-gray-400 transition-colors">
+                              <span className="text-gray-600 dark:text-gray-400 group-hover/folder-row:text-gray-800 dark:group-hover/folder-row:text-gray-200 transition-colors">
                                 {isFolderExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                               </span>
 
@@ -868,13 +868,13 @@ export default function ScanView({
                               <div className="flex-1 min-w-0 flex flex-col py-0.5">
                                 <span
                                   className={`text-xs font-semibold truncate transition-colors ${
-                                    isFolderSomeSelected ? "text-blue-300" : "text-gray-200 group-hover/folder-row:text-white"
+                                    isFolderSomeSelected ? "text-blue-300" : "text-gray-900 dark:text-gray-100"
                                   }`}
                                   title={folderPath}
                                 >
                                   {formatDisplayPath(folderPath)}
                                 </span>
-                                <span className="text-[10px] text-gray-500 font-mono mt-0.5">
+                                <span className="text-[10px] text-gray-500 dark:text-gray-400 font-mono mt-0.5">
                                   {t("scan.folder.fileCount").replace("{count}", String(folderFiles.length))}
                                 </span>
                               </div>
@@ -882,7 +882,7 @@ export default function ScanView({
                               <span className={`text-[10px] font-mono font-bold shrink-0 px-2 py-0.5 rounded border transition-all ${
                                 isFolderSomeSelected
                                   ? "text-blue-300 bg-blue-950/20 border-blue-900/30"
-                                  : "text-gray-400 bg-gray-900/40 border-gray-800/60 group-hover/folder-row:border-gray-700/60 group-hover/folder-row:text-gray-300"
+                                  : "text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover/folder-row:border-gray-300 dark:group-hover/folder-row:border-gray-600 group-hover/folder-row:text-gray-600 dark:group-hover/folder-row:text-gray-300"
                               }`}>
                                 {formatFileSize(folderSize)}
                               </span>
@@ -890,7 +890,7 @@ export default function ScanView({
 
                             {/* Recursive Tree under root folder */}
                             {isFolderExpanded && (
-                              <div className="flex flex-col bg-gray-950/20 pb-1">
+                              <div className="flex flex-col bg-white dark:bg-gray-950 pb-1">
                                 {folderTree.map((child) => renderTreeNode(child, groupId, 1))}
                               </div>
                             )}

@@ -535,6 +535,8 @@
   "orphan.sort.date": "Sort by Date",
   "orphan.sortByCategory": "Category",
   "orphan.scanResultSummary": "Found {count} orphan items, totaling {size}",
+  "orphan.calculating": "Calculating...",
+  "orphan.calculating_sizes": "Calculating sizes...",
   "orphan.select_all": "Select All",
   "orphan.deselect_all": "Deselect All",
   "orphan.selected_summary": "Selected {count} items, total {size}",

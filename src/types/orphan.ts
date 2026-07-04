@@ -8,6 +8,7 @@ export interface OrphanGroup {
   category: string;
   last_modified: number | null;
   paths: string[];
+  size_calculated?: boolean;
 }
 
 export interface OrphanDeleteResult {

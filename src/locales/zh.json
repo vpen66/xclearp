@@ -535,6 +535,8 @@
   "orphan.sort.date": "按日期排序",
   "orphan.sortByCategory": "类型",
   "orphan.scanResultSummary": "发现 {count} 个残余项，共占用 {size}",
+  "orphan.calculating": "计算中...",
+  "orphan.calculating_sizes": "正在计算大小...",
   "orphan.select_all": "全选",
   "orphan.deselect_all": "取消全选",
   "orphan.selected_summary": "已选 {count} 项，共 {size}",

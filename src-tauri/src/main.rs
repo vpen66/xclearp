@@ -104,6 +104,8 @@ fn main() {
             uninstall::get_failed_uninstalls,
             uninstall::clear_failed_uninstalls,
             uninstall::get_uninstall_state,
+            orphan::quick_scan_orphan_files,
+            orphan::calculate_orphan_stats,
             orphan::scan_orphan_files,
             orphan::delete_orphan_files,
             startup::list_startup_items,
