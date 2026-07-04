@@ -401,10 +401,30 @@ impl PlatformProvider for LinuxProvider {
     }
 
     fn move_to_trash(&self, path: &Path) -> Result<(), PlatformError> {
-        trash::delete(path).map_err(|e| PlatformError {
-            message: format!("Failed to move to trash: {}", e),
-            path: Some(path.to_path_buf()),
-        })
+        match trash::delete(path) {
+            Ok(()) => Ok(()),
+            Err(trash_err) => {
+                // Fallback: if trash operation fails, use robust direct delete
+                eprintln!(
+                    "[xclearp] trash::delete failed for {}: {}, falling back to robust direct delete",
+                    path.display(),
+                    trash_err
+                );
+                match common::robust_remove_impl(path) {
+                    Ok(skipped) => {
+                        if skipped > 0 {
+                            eprintln!(
+                                "[xclearp] {} entries were skipped (locked/in-use) in {}",
+                                skipped,
+                                path.display()
+                            );
+                        }
+                        Ok(())
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+        }
     }
 
     fn empty_trash(&self) -> Result<(), PlatformError> {

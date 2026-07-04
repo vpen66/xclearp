@@ -42,6 +42,8 @@
     "allow-get-failed-uninstalls",
     "allow-clear-failed-uninstalls",
     "allow-get-uninstall-state",
+    "allow-quick-scan-orphan-files",
+    "allow-calculate-orphan-stats",
     "allow-scan-orphan-files",
     "allow-delete-orphan-files",
     "allow-list-startup-items",

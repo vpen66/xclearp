@@ -164,6 +164,16 @@ description = "Enables the get_uninstall_state command"
 commands.allow = ["get_uninstall_state"]
 
 [[permission]]
+identifier = "allow-quick-scan-orphan-files"
+description = "Enables the quick_scan_orphan_files command"
+commands.allow = ["quick_scan_orphan_files"]
+
+[[permission]]
+identifier = "allow-calculate-orphan-stats"
+description = "Enables the calculate_orphan_stats command"
+commands.allow = ["calculate_orphan_stats"]
+
+[[permission]]
 identifier = "allow-scan-orphan-files"
 description = "Enables the scan_orphan_files command"
 commands.allow = ["scan_orphan_files"]

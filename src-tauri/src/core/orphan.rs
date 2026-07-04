@@ -24,6 +24,9 @@ pub struct OrphanGroup {
     pub last_modified: Option<u64>,
     /// Sub-paths within the residual directory.
     pub paths: Vec<PathBuf>,
+    /// Whether size has been fully calculated (false = quick scan, true = full stats).
+    #[serde(default)]
+    pub size_calculated: bool,
 }
 
 /// Result of deleting orphan files.
@@ -35,14 +38,14 @@ pub struct OrphanDeleteResult {
     pub errors: Vec<String>,
 }
 
-/// Scan for orphan files across all platform-specific directories.
-///
-/// An "orphan" is a directory or file inside a well-known application data location
-/// whose name does not match any currently installed application.
-pub fn scan_orphan_files(platform: &Arc<dyn PlatformProvider + Send + Sync>) -> Vec<OrphanGroup> {
+/// Quick scan: identify orphan directories without walking their contents.
+/// Returns orphans with total_size=0 and file_count=0 for directories,
+/// but accurate metadata for single files. This is very fast.
+pub fn quick_scan_orphan_files(
+    platform: &Arc<dyn PlatformProvider + Send + Sync>,
+) -> Vec<OrphanGroup> {
     let installed_apps = platform.list_installed_apps();
     let app_keywords = build_app_keywords(&installed_apps);
-
     let scan_dirs = get_orphan_scan_dirs();
 
     let mut orphans: Vec<OrphanGroup> = Vec::new();
@@ -63,19 +66,15 @@ pub fn scan_orphan_files(platform: &Arc<dyn PlatformProvider + Send + Sync>) -> 
                 None => continue,
             };
 
-            // Skip system / well-known prefixes
             if skip_prefixes.iter().any(|p| name.starts_with(p)) {
                 continue;
             }
 
-            // For Preferences on macOS, only consider .plist files
             if *category == "preferences" && !name.ends_with(".plist") {
                 continue;
             }
 
-            // Determine the "app name" to match against installed apps
             let check_name = if *category == "preferences" {
-                // Strip .plist extension and try to extract app name
                 name.strip_suffix(".plist").unwrap_or(&name).to_string()
             } else if *category == "saved_state" {
                 name.strip_suffix(".savedState")
@@ -86,14 +85,11 @@ pub fn scan_orphan_files(platform: &Arc<dyn PlatformProvider + Send + Sync>) -> 
             };
 
             if is_orphan(&check_name, &app_keywords) {
-                let (total_size, file_count, last_modified) = calculate_dir_stats(&path);
-
-                if file_count == 0 && total_size == 0 {
-                    continue;
-                }
+                // Quick metadata only — no directory walking
+                let (quick_size, quick_count, quick_modified, size_calculated) =
+                    quick_metadata(&path);
 
                 let display_name = if *category == "preferences" {
-                    // Try to make a friendlier name from bundle-id-like plist names
                     extract_app_hint(&check_name)
                 } else {
                     name.clone()
@@ -102,14 +98,89 @@ pub fn scan_orphan_files(platform: &Arc<dyn PlatformProvider + Send + Sync>) -> 
                 orphans.push(OrphanGroup {
                     app_name: display_name,
                     base_path: path.clone(),
-                    total_size,
-                    file_count,
+                    total_size: quick_size,
+                    file_count: quick_count,
                     category: category.to_string(),
-                    last_modified,
+                    last_modified: quick_modified,
                     paths: vec![path],
+                    size_calculated,
                 });
             }
         }
+    }
+
+    // Sort by name for quick scan (sizes not yet known)
+    orphans.sort_by_key(|a| a.app_name.to_lowercase());
+    orphans
+}
+
+/// Calculate full stats (size, file_count, last_modified) for the given orphan paths.
+/// Uses multiple threads to parallelise directory walking.
+pub fn calculate_orphan_group_stats(paths: Vec<String>) -> Vec<OrphanGroup> {
+    use std::sync::Mutex;
+
+    let results: Arc<Mutex<Vec<OrphanGroup>>> = Arc::new(Mutex::new(Vec::new()));
+    let mut handles = Vec::new();
+
+    for path_str in paths {
+        let path = PathBuf::from(&path_str);
+        let results = Arc::clone(&results);
+        let handle = std::thread::spawn(move || {
+            if !path.exists() {
+                return;
+            }
+            let (total_size, file_count, last_modified) = calculate_dir_stats(&path);
+            if file_count == 0 && total_size == 0 {
+                return;
+            }
+            let group = OrphanGroup {
+                app_name: String::new(), // caller will merge by base_path
+                base_path: path,
+                total_size,
+                file_count,
+                category: String::new(),
+                last_modified,
+                paths: vec![],
+                size_calculated: true,
+            };
+            results.lock().unwrap().push(group);
+        });
+        handles.push(handle);
+    }
+
+    for h in handles {
+        let _ = h.join();
+    }
+
+    Arc::try_unwrap(results).unwrap().into_inner().unwrap()
+}
+
+/// Scan for orphan files across all platform-specific directories (full scan with sizes).
+///
+/// An "orphan" is a directory or file inside a well-known application data location
+/// whose name does not match any currently installed application.
+pub fn scan_orphan_files(platform: &Arc<dyn PlatformProvider + Send + Sync>) -> Vec<OrphanGroup> {
+    let mut orphans = quick_scan_orphan_files(platform);
+
+    // Calculate sizes for directories that need it
+    let paths_needing_size: Vec<String> = orphans
+        .iter()
+        .filter(|o| !o.size_calculated)
+        .map(|o| o.base_path.to_string_lossy().to_string())
+        .collect();
+
+    if !paths_needing_size.is_empty() {
+        let stats = calculate_orphan_group_stats(paths_needing_size);
+        for stat in &stats {
+            if let Some(orphan) = orphans.iter_mut().find(|o| o.base_path == stat.base_path) {
+                orphan.total_size = stat.total_size;
+                orphan.file_count = stat.file_count;
+                orphan.last_modified = stat.last_modified;
+                orphan.size_calculated = true;
+            }
+        }
+        // Remove entries that turned out to be empty
+        orphans.retain(|o| o.file_count > 0 || o.total_size > 0);
     }
 
     // Sort by size descending
@@ -406,6 +477,25 @@ fn get_orphan_scan_dirs() -> Vec<(PathBuf, &'static str, Vec<&'static str>)> {
     }
 
     dirs
+}
+
+/// Quick metadata: get size/count without walking directory contents.
+/// For single files: returns accurate stats immediately.
+/// For directories: returns (0, 0, None, false) to signal that full calculation is needed.
+fn quick_metadata(path: &Path) -> (u64, u32, Option<u64>, bool) {
+    if path.is_file() {
+        if let Ok(meta) = std::fs::metadata(path) {
+            let size = meta.len();
+            let modified = meta
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs());
+            return (size, 1, modified, true);
+        }
+    }
+    // Directory: defer full calculation
+    (0, 0, None, false)
 }
 
 /// Calculate total size, file count, and latest modification time for a directory.

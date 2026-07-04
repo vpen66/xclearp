@@ -1,4 +1,6 @@
 use std::path::Path;
+use std::thread;
+use std::time::Duration;
 
 use super::PlatformError;
 
@@ -87,6 +89,85 @@ pub fn safe_remove_impl(path: &Path, error_template: &PlatformError) -> Result<(
     }
 
     let _ = error_template; // suppress unused warning
+    Ok(())
+}
+
+/// Robust remove that walks directories and deletes files individually.
+/// For directories: tries to delete as many entries as possible, skipping
+/// locked/in-use files. Returns Ok with the count of skipped entries.
+/// Includes a single retry with a short delay for transient file locks.
+pub fn robust_remove_impl(path: &Path) -> Result<u64, PlatformError> {
+    if !path.exists() {
+        return Ok(0);
+    }
+
+    if !path.is_dir() {
+        // Single file: try delete, retry once after short delay
+        if std::fs::remove_file(path).is_err() {
+            thread::sleep(Duration::from_millis(200));
+            std::fs::remove_file(path).map_err(|e| PlatformError {
+                message: format!("Failed to remove file after retry: {}", e),
+                path: Some(path.to_path_buf()),
+            })?;
+        }
+        return Ok(0);
+    }
+
+    // Directory: walk and delete entries individually
+    let mut skipped: u64 = 0;
+    robust_remove_dir(path, &mut skipped)?;
+
+    // Try to remove the now-empty (or partially empty) directory
+    if path.exists() {
+        let _ = std::fs::remove_dir(path);
+    }
+
+    Ok(skipped)
+}
+
+fn robust_remove_dir(dir: &Path, skipped: &mut u64) -> Result<(), PlatformError> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => {
+            *skipped += 1;
+            return Ok(());
+        }
+    };
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => {
+                *skipped += 1;
+                continue;
+            }
+        };
+
+        let path = entry.path();
+
+        if path.is_dir() {
+            // Recurse into subdirectory
+            if robust_remove_dir(&path, skipped).is_err() {
+                *skipped += 1;
+            } else {
+                // Try to remove the now-empty subdirectory
+                if path.exists() && std::fs::remove_dir(&path).is_err() {
+                    // Retry once after delay
+                    thread::sleep(Duration::from_millis(100));
+                    let _ = std::fs::remove_dir(&path);
+                }
+            }
+        } else {
+            // Try to delete file, retry once on failure
+            if std::fs::remove_file(&path).is_err() {
+                thread::sleep(Duration::from_millis(100));
+                if std::fs::remove_file(&path).is_err() {
+                    *skipped += 1;
+                }
+            }
+        }
+    }
+
     Ok(())
 }
 

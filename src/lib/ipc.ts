@@ -297,6 +297,16 @@ export async function scanOrphanFiles(): Promise<OrphanGroup[]> {
   return invoke<OrphanGroup[]>("scan_orphan_files");
 }
 
+/** Quick scan: returns orphan entries immediately without computing directory sizes. */
+export async function quickScanOrphanFiles(): Promise<OrphanGroup[]> {
+  return invoke<OrphanGroup[]>("quick_scan_orphan_files");
+}
+
+/** Calculate full stats (size, file_count, last_modified) for the given orphan paths. */
+export async function calculateOrphanStats(paths: string[]): Promise<OrphanGroup[]> {
+  return invoke<OrphanGroup[]>("calculate_orphan_stats", { paths });
+}
+
 /** Delete selected orphan file paths.
  *  When safeMode is true, files are moved to trash instead of being permanently deleted.
  */
