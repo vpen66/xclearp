@@ -252,7 +252,7 @@ mod imp {
 #[cfg(target_os = "windows")]
 mod imp {
     use super::*;
-    use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+    use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, KEY_WRITE};
     use winreg::RegKey;
 
     pub fn list_startup_items() -> Vec<StartupItem> {
@@ -417,7 +417,7 @@ mod imp {
     }
 
     fn scan_registry_key(
-        hive: u32,
+        hive: isize,
         subkey: &str,
         item_type: &str,
         user_level: &str,
