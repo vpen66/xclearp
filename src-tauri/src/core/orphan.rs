@@ -110,7 +110,7 @@ pub fn quick_scan_orphan_files(
     }
 
     // Sort by name for quick scan (sizes not yet known)
-    orphans.sort_by(|a, b| a.app_name.to_lowercase().cmp(&b.app_name.to_lowercase()));
+    orphans.sort_by_key(|a| a.app_name.to_lowercase());
     orphans
 }
 
