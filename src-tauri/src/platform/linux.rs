@@ -401,29 +401,10 @@ impl PlatformProvider for LinuxProvider {
     }
 
     fn move_to_trash(&self, path: &Path) -> Result<(), PlatformError> {
-        if !path.exists() {
-            return Ok(());
-        }
-        let output = std::process::Command::new("gio")
-            .args(["trash", &path.to_string_lossy()])
-            .output()
-            .or_else(|_| std::process::Command::new("trash-put").arg(path).output())
-            .map_err(|e| PlatformError {
-                message: format!("Failed to move to trash: {}", e),
-                path: Some(path.to_path_buf()),
-            })?;
-
-        if output.status.success() {
-            Ok(())
-        } else {
-            common::safe_remove_impl(
-                path,
-                &PlatformError {
-                    message: "Failed to trash, direct remove failed".to_string(),
-                    path: Some(path.to_path_buf()),
-                },
-            )
-        }
+        trash::delete(path).map_err(|e| PlatformError {
+            message: format!("Failed to move to trash: {}", e),
+            path: Some(path.to_path_buf()),
+        })
     }
 
     fn empty_trash(&self) -> Result<(), PlatformError> {

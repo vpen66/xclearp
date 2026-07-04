@@ -120,31 +120,10 @@ impl PlatformProvider for MacOSProvider {
     }
 
     fn move_to_trash(&self, path: &Path) -> Result<(), PlatformError> {
-        if !path.exists() {
-            return Ok(());
-        }
-        // Use Finder via AppleScript to move to trash (native macOS behavior)
-        let script = format!(
-            "tell application \"Finder\" to delete POSIX file \"{}\"",
-            path.to_string_lossy()
-        );
-        let output = std::process::Command::new("osascript")
-            .args(["-e", &script])
-            .output()
-            .map_err(|e| PlatformError {
-                message: format!("Failed to run osascript: {}", e),
-                path: Some(path.to_path_buf()),
-            })?;
-
-        if output.status.success() {
-            Ok(())
-        } else {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            Err(PlatformError {
-                message: format!("Failed to move to trash: {}", stderr),
-                path: Some(path.to_path_buf()),
-            })
-        }
+        trash::delete(path).map_err(|e| PlatformError {
+            message: format!("Failed to move to trash: {}", e),
+            path: Some(path.to_path_buf()),
+        })
     }
 
     fn empty_trash(&self) -> Result<(), PlatformError> {
