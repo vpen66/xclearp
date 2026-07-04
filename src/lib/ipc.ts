@@ -4,7 +4,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { NdjsonEnvelope, ScanTarget, RuleGroup, CleanRule, FileEntry, DiskUsage } from "../types/index";
 import type { DiskEvent } from "../types/disk";
-import type { InstalledApp, UninstallEvent, UninstallMode, AppFileGroup } from "../types/uninstall";
+import type { InstalledApp, UninstallEvent, UninstallMode, AppFileGroup, BatchAppConfig, FailedUninstall } from "../types/uninstall";
+import type { StartupItem } from "../types/startup";
+import type { OrphanGroup, OrphanDeleteResult } from "../types/orphan";
 
 /** Start a scan with the given rule IDs. Returns the operation ID. */
 export async function startScan(ruleIds: string[]): Promise<{ op_id: string }> {
@@ -195,24 +197,38 @@ export async function scanApp(app: InstalledApp): Promise<AppFileGroup[]> {
 
 /** Uninstall an application with the specified mode.
  *  When safeMode is true, residual files are moved to trash instead of being permanently deleted.
+ *  excludePaths are paths to skip during deletion (user unchecked them in the review UI).
  */
 export async function uninstallApp(
   app: InstalledApp,
   mode: UninstallMode,
   residualPaths: string[],
   safeMode?: boolean,
+  excludePaths?: string[],
 ): Promise<{ op_id: string }> {
   return invoke<{ op_id: string }>("uninstall_app", {
     app,
     mode,
     residualPaths,
     safeMode: safeMode ?? true,
+    excludePaths: excludePaths ?? [],
   });
 }
 
 /** Cancel an active uninstall operation. */
 export async function cancelUninstall(opId: string): Promise<boolean> {
   return invoke<boolean>("cancel_uninstall", { opId });
+}
+
+/** Retry deleting a list of failed paths. Returns the operation ID. */
+export async function retryFailedItems(
+  paths: string[],
+  safeMode?: boolean,
+): Promise<{ op_id: string }> {
+  return invoke<{ op_id: string }>("retry_failed_items", {
+    paths,
+    safeMode: safeMode ?? true,
+  });
 }
 
 /** Listen to uninstall streaming events from the backend. */
@@ -224,10 +240,73 @@ export async function listenToUninstallEvents(
   });
 }
 
+/** Batch uninstall multiple applications sequentially. */
+export async function batchUninstall(
+  configs: BatchAppConfig[],
+  safeMode?: boolean,
+): Promise<{ op_id: string }> {
+  return invoke<{ op_id: string }>("batch_uninstall", {
+    configs,
+    safeMode: safeMode ?? true,
+  });
+}
+
+/** Get persisted failed uninstall records. */
+export async function getFailedUninstalls(): Promise<FailedUninstall[]> {
+  return invoke<FailedUninstall[]>("get_failed_uninstalls");
+}
+
+/** Clear all persisted failed uninstall records. */
+export async function clearFailedUninstalls(): Promise<void> {
+  return invoke("clear_failed_uninstalls");
+}
+
+/** Get the current global uninstall state. */
+export async function getUninstallState(): Promise<string> {
+  return invoke<string>("get_uninstall_state");
+}
+
 /** Read icon PNG files and return base64 data URLs for browser display. */
 export async function getIconDataUrls(
   paths: string[],
 ): Promise<Record<string, string>> {
   return invoke<Record<string, string>>("get_icon_data_urls", { paths });
+}
+
+// --- Startup Manager commands ---
+
+/** List all startup items on the current platform. */
+export async function listStartupItems(): Promise<StartupItem[]> {
+  return invoke<StartupItem[]>("list_startup_items");
+}
+
+/** Enable or disable a startup item. */
+export async function toggleStartupItem(source: string, enabled: boolean): Promise<void> {
+  return invoke("toggle_startup_item", { source, enabled });
+}
+
+/** Remove a startup item. */
+export async function removeStartupItem(source: string): Promise<void> {
+  return invoke("remove_startup_item", { source });
+}
+
+// --- Orphan file commands ---
+
+/** Scan for orphan files left behind by uninstalled applications. */
+export async function scanOrphanFiles(): Promise<OrphanGroup[]> {
+  return invoke<OrphanGroup[]>("scan_orphan_files");
+}
+
+/** Delete selected orphan file paths.
+ *  When safeMode is true, files are moved to trash instead of being permanently deleted.
+ */
+export async function deleteOrphanFiles(
+  paths: string[],
+  safeMode?: boolean,
+): Promise<OrphanDeleteResult> {
+  return invoke<OrphanDeleteResult>("delete_orphan_files", {
+    paths,
+    safeMode: safeMode ?? true,
+  });
 }
 

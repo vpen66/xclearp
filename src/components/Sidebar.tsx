@@ -8,6 +8,8 @@ import {
   IconHardDrive,
   IconSettings,
   IconPackageX,
+  IconRocket,
+  IconFolderQuestion,
 } from "./Icons";
 import { useI18n } from "../lib/i18n";
 
@@ -30,6 +32,8 @@ export default function Sidebar({ currentPage, onNavigate, width }: SidebarProps
     { page: "scan", labelKey: "nav.scan", icon: <IconSearch /> },
     { page: "disk", labelKey: "nav.disk", icon: <IconHardDrive /> },
     { page: "uninstall", labelKey: "nav.uninstall", icon: <IconPackageX /> },
+    { page: "startup", labelKey: "nav.startup", icon: <IconRocket /> },
+    { page: "orphan", labelKey: "nav.orphan", icon: <IconFolderQuestion /> },
     { page: "settings", labelKey: "nav.settings", icon: <IconSettings /> },
   ];
 

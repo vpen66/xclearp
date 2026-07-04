@@ -3,6 +3,20 @@ pub mod engine;
 
 use serde::{Deserialize, Serialize};
 
+/// Risk level for a file category, indicating how safe it is to delete.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RiskLevel {
+    /// Safe to delete; no user data or system impact.
+    Safe = 0,
+    /// Contains user data; review before deleting.
+    Medium = 1,
+    /// May affect application settings or system behavior.
+    High = 2,
+    /// May affect system startup, services, or other applications.
+    Critical = 3,
+}
+
 /// An installed application discovered on the system.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,6 +49,8 @@ pub struct InstalledApp {
     /// Linux: package name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub package_name: Option<String>,
+    /// Overall risk level for this application (highest risk across all file groups).
+    pub risk_level: RiskLevel,
 }
 
 /// Category of residual files associated with an app.
@@ -87,6 +103,34 @@ impl AppFileCategory {
         }
     }
 
+    pub fn risk_level(&self) -> RiskLevel {
+        match self {
+            AppFileCategory::Cache | AppFileCategory::Logs | AppFileCategory::HttpStorages => {
+                RiskLevel::Safe
+            }
+
+            AppFileCategory::ApplicationSupport
+            | AppFileCategory::UserData
+            | AppFileCategory::LocalAppData
+            | AppFileCategory::SavedState
+            | AppFileCategory::WebKit
+            | AppFileCategory::Containers
+            | AppFileCategory::XdgData
+            | AppFileCategory::XdgState => RiskLevel::Medium,
+
+            AppFileCategory::Preferences
+            | AppFileCategory::ProgramData
+            | AppFileCategory::Registry => RiskLevel::High,
+
+            AppFileCategory::LaunchAgents
+            | AppFileCategory::LaunchDaemons
+            | AppFileCategory::StartMenu
+            | AppFileCategory::Desktop => RiskLevel::Critical,
+
+            AppFileCategory::Other => RiskLevel::Medium,
+        }
+    }
+
     pub fn risk_hint(&self) -> &str {
         match self {
             AppFileCategory::Cache => "安全删除，应用会自动重建",
@@ -128,19 +172,40 @@ pub struct AppFileGroup {
     pub category: AppFileCategory,
     pub category_name: String,
     pub risk_hint: String,
+    pub risk_level: RiskLevel,
     pub files: Vec<AppFileEntry>,
     pub total_size: u64,
     pub file_count: u64,
 }
 
 /// Uninstall mode selected by the user in the confirmation dialog.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UninstallMode {
     /// Move the app to trash only (macOS default).
+    #[serde(rename = "trash_only")]
     TrashOnly,
     /// Invoke the official uninstaller then scan residuals (Windows default).
+    #[serde(rename = "official_uninstaller")]
     OfficialUninstaller,
     /// Only delete residual files, do not uninstall the app itself.
+    #[serde(rename = "residual_only")]
     ResidualOnly,
+    /// Reset the app: delete cache/config/logs but keep the app itself.
+    #[serde(rename = "reset")]
+    Reset,
+}
+
+/// Configuration for a single app within a batch uninstall operation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchAppConfig {
+    /// The application to uninstall.
+    pub app: InstalledApp,
+    /// Uninstall mode (trash_only, official_uninstaller, residual_only, reset).
+    pub mode: String,
+    /// Residual paths to delete.
+    pub residual_paths: Vec<String>,
+    /// Paths to skip during deletion (user unchecked them).
+    #[serde(default)]
+    pub exclude_paths: Vec<String>,
 }

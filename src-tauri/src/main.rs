@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use tauri::{Emitter, Manager};
 
-use commands::{clean, disk, rules, scan, uninstall};
+use commands::{clean, disk, orphan, rules, scan, startup, uninstall};
 use core::engine::CleanEngine;
 use core::event_bus::{EventBus, UninstallEventBus};
 use core::uninstall::engine::UninstallEngine;
@@ -98,7 +98,17 @@ fn main() {
             uninstall::scan_app,
             uninstall::uninstall_app,
             uninstall::cancel_uninstall,
+            uninstall::retry_failed_items,
             uninstall::get_icon_data_urls,
+            uninstall::batch_uninstall,
+            uninstall::get_failed_uninstalls,
+            uninstall::clear_failed_uninstalls,
+            uninstall::get_uninstall_state,
+            orphan::scan_orphan_files,
+            orphan::delete_orphan_files,
+            startup::list_startup_items,
+            startup::toggle_startup_item,
+            startup::remove_startup_item,
             relaunch,
         ])
         .run(tauri::generate_context!())

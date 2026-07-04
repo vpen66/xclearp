@@ -11,7 +11,7 @@ use crate::core::events::UninstallEvent;
 
 /// Build the macOS-specific category -> paths mapping for residual scanning.
 pub fn macos_residual_paths(app: &InstalledApp) -> HashMap<AppFileCategory, Vec<PathBuf>> {
-    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/Users/unknown"));
+    let home = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
     let bundle_id = &app.bundle_id;
     let name = &app.name;
 
@@ -207,6 +207,7 @@ pub fn scan_paths_to_groups(
                 category: category.clone(),
                 category_name: category.display_name().to_string(),
                 risk_hint: category.risk_hint().to_string(),
+                risk_level: category.risk_level(),
                 files,
                 total_size: group_size,
                 file_count,

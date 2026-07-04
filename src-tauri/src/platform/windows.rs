@@ -11,7 +11,7 @@ use crate::core::event_bus::UninstallEventBus;
 use crate::core::events::UninstallEvent;
 use crate::core::rules::CleanRule;
 use crate::core::uninstall::app_scanner::scan_paths_to_groups;
-use crate::core::uninstall::{AppFileCategory, AppFileGroup, InstalledApp};
+use crate::core::uninstall::{AppFileCategory, AppFileGroup, InstalledApp, RiskLevel};
 
 #[cfg(target_os = "windows")]
 use winreg::enums::*;
@@ -27,7 +27,7 @@ impl WindowsProvider {
     }
 
     fn home_dir() -> PathBuf {
-        dirs::home_dir().unwrap_or_else(|| PathBuf::from("C:\\Users\\Unknown"))
+        dirs::home_dir().unwrap_or_else(std::env::temp_dir)
     }
 
     fn env_var(name: &str) -> Option<String> {
@@ -172,6 +172,7 @@ fn read_registry_apps() -> Vec<InstalledApp> {
                 },
                 package_manager: None,
                 package_name: None,
+                risk_level: RiskLevel::Safe,
             });
         }
     }
@@ -556,32 +557,10 @@ impl PlatformProvider for WindowsProvider {
     }
 
     fn move_to_trash(&self, path: &Path) -> Result<(), PlatformError> {
-        if !path.exists() {
-            return Ok(());
-        }
-        let ps_script = format!(
-            "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('{}', 'OnlyErrorDialogs', 'SendToRecycleBin')",
-            path.to_string_lossy().replace('"', "'")
-        );
-        let output = std::process::Command::new("powershell")
-            .args(["-Command", &ps_script])
-            .output()
-            .map_err(|e| PlatformError {
-                message: format!("Failed to run PowerShell: {}", e),
-                path: Some(path.to_path_buf()),
-            })?;
-
-        if output.status.success() {
-            Ok(())
-        } else {
-            common::safe_remove_impl(
-                path,
-                &PlatformError {
-                    message: "Failed to trash, direct remove failed".to_string(),
-                    path: Some(path.to_path_buf()),
-                },
-            )
-        }
+        trash::delete(path).map_err(|e| PlatformError {
+            message: format!("Failed to move to trash: {}", e),
+            path: Some(path.to_path_buf()),
+        })
     }
 
     fn empty_trash(&self) -> Result<(), PlatformError> {
@@ -665,6 +644,7 @@ impl PlatformProvider for WindowsProvider {
                     category: AppFileCategory::Registry,
                     category_name: AppFileCategory::Registry.display_name().to_string(),
                     risk_hint: AppFileCategory::Registry.risk_hint().to_string(),
+                    risk_level: AppFileCategory::Registry.risk_level(),
                     files: registry_entries,
                     total_size,
                     file_count,

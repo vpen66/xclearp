@@ -8,7 +8,7 @@ use crate::core::event_bus::UninstallEventBus;
 use crate::core::events::UninstallEvent;
 use crate::core::rules::CleanRule;
 use crate::core::uninstall::app_scanner::{macos_residual_paths, scan_paths_to_groups};
-use crate::core::uninstall::{AppFileGroup, InstalledApp};
+use crate::core::uninstall::{AppFileGroup, InstalledApp, RiskLevel};
 
 /// macOS-specific platform provider.
 pub struct MacOSProvider;
@@ -20,7 +20,7 @@ impl MacOSProvider {
     }
 
     fn home_dir() -> PathBuf {
-        dirs::home_dir().unwrap_or_else(|| PathBuf::from("/Users/unknown"))
+        dirs::home_dir().unwrap_or_else(std::env::temp_dir)
     }
 }
 
@@ -120,31 +120,10 @@ impl PlatformProvider for MacOSProvider {
     }
 
     fn move_to_trash(&self, path: &Path) -> Result<(), PlatformError> {
-        if !path.exists() {
-            return Ok(());
-        }
-        // Use Finder via AppleScript to move to trash (native macOS behavior)
-        let script = format!(
-            "tell application \"Finder\" to delete POSIX file \"{}\"",
-            path.to_string_lossy()
-        );
-        let output = std::process::Command::new("osascript")
-            .args(["-e", &script])
-            .output()
-            .map_err(|e| PlatformError {
-                message: format!("Failed to run osascript: {}", e),
-                path: Some(path.to_path_buf()),
-            })?;
-
-        if output.status.success() {
-            Ok(())
-        } else {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            Err(PlatformError {
-                message: format!("Failed to move to trash: {}", stderr),
-                path: Some(path.to_path_buf()),
-            })
-        }
+        trash::delete(path).map_err(|e| PlatformError {
+            message: format!("Failed to move to trash: {}", e),
+            path: Some(path.to_path_buf()),
+        })
     }
 
     fn empty_trash(&self) -> Result<(), PlatformError> {
@@ -255,6 +234,7 @@ impl PlatformProvider for MacOSProvider {
                     publisher: None,
                     package_manager: None,
                     package_name: None,
+                    risk_level: RiskLevel::Safe,
                 });
             }
         }
@@ -382,7 +362,7 @@ fn convert_icns_to_png(icns_path: &Path, app_path: &Path) -> Option<String> {
         .unwrap_or("unknown");
 
     // Use app-specific cache directory
-    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/Users/unknown"));
+    let home = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
     let cache_dir = home.join("Library/Caches/com.xclearp.app/icons");
     if !cache_dir.exists() {
         let _ = std::fs::create_dir_all(&cache_dir);

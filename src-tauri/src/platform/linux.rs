@@ -11,7 +11,7 @@ use crate::core::event_bus::UninstallEventBus;
 use crate::core::events::UninstallEvent;
 use crate::core::rules::CleanRule;
 use crate::core::uninstall::app_scanner::scan_paths_to_groups;
-use crate::core::uninstall::{AppFileCategory, AppFileGroup, InstalledApp};
+use crate::core::uninstall::{AppFileCategory, AppFileGroup, InstalledApp, RiskLevel};
 
 /// Linux-specific platform provider (follows XDG Base Directory Specification).
 pub struct LinuxProvider;
@@ -22,7 +22,7 @@ impl LinuxProvider {
     }
 
     fn home_dir() -> PathBuf {
-        dirs::home_dir().unwrap_or_else(|| PathBuf::from("/home/unknown"))
+        dirs::home_dir().unwrap_or_else(std::env::temp_dir)
     }
 
     fn xdg_cache_home() -> PathBuf {
@@ -401,29 +401,10 @@ impl PlatformProvider for LinuxProvider {
     }
 
     fn move_to_trash(&self, path: &Path) -> Result<(), PlatformError> {
-        if !path.exists() {
-            return Ok(());
-        }
-        let output = std::process::Command::new("gio")
-            .args(["trash", &path.to_string_lossy()])
-            .output()
-            .or_else(|_| std::process::Command::new("trash-put").arg(path).output())
-            .map_err(|e| PlatformError {
-                message: format!("Failed to move to trash: {}", e),
-                path: Some(path.to_path_buf()),
-            })?;
-
-        if output.status.success() {
-            Ok(())
-        } else {
-            common::safe_remove_impl(
-                path,
-                &PlatformError {
-                    message: "Failed to trash, direct remove failed".to_string(),
-                    path: Some(path.to_path_buf()),
-                },
-            )
-        }
+        trash::delete(path).map_err(|e| PlatformError {
+            message: format!("Failed to move to trash: {}", e),
+            path: Some(path.to_path_buf()),
+        })
     }
 
     fn empty_trash(&self) -> Result<(), PlatformError> {
@@ -558,6 +539,7 @@ impl PlatformProvider for LinuxProvider {
                     publisher: None,
                     package_manager: Some(pkg_mgr),
                     package_name: final_pkg_name,
+                    risk_level: RiskLevel::Safe,
                 });
             }
         }
