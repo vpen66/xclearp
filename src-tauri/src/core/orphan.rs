@@ -113,7 +113,7 @@ pub fn scan_orphan_files(platform: &Arc<dyn PlatformProvider + Send + Sync>) -> 
     }
 
     // Sort by size descending
-    orphans.sort_by(|a, b| b.total_size.cmp(&a.total_size));
+    orphans.sort_by_key(|b| std::cmp::Reverse(b.total_size));
     orphans
 }
 

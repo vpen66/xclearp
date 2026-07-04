@@ -172,7 +172,7 @@ export default function StartupView({ isActive }: { isActive: boolean }) {
         <div className="flex items-center justify-center py-12">
           <IconLoader className="animate-spin text-blue-400" />
           <span className="ml-2 text-gray-400 text-sm">
-            {t("startup_search").replace("...", "...")}
+            {t("startup_search")}
           </span>
         </div>
       ) : filteredItems.length === 0 ? (
