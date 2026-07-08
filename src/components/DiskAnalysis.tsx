@@ -38,6 +38,7 @@ import {
   ChevronDown,
   Eye,
   EyeOff,
+  History,
 } from "lucide-react";
 import { useToast } from "./Toast";
 import { useI18n } from "../lib/i18n";
@@ -229,6 +230,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
 
   // Show hidden files toggle
   const [showHiddenFiles, setShowHiddenFiles] = useState(false);
+  const [compareMode, setCompareMode] = useState(false);
 
   // Context menu state
   const [ctxMenu, setCtxMenu] = useState<{
@@ -661,6 +663,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
   const sortLabel: Record<SortField, string> = {
     name: t("disk.table.header.name"),
     size: t("disk.table.header.size"),
+    sizeDiff: t("disk.table.header.change") || "Change",
     modified: t("disk.table.header.modified"),
   };
 
@@ -694,6 +697,10 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
       </span>
     );
   };
+
+  const gridLayoutClass = batchSelectionMode
+    ? (compareMode ? "grid-cols-[28px_1fr_100px_100px_120px]" : "grid-cols-[28px_1fr_100px_120px]")
+    : (compareMode ? "grid-cols-[1fr_100px_100px_120px]" : "grid-cols-[1fr_100px_120px]");
 
   return (
     <div className="space-y-4">
@@ -832,6 +839,19 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
         >
           {showHiddenFiles ? <Eye size={16} /> : <EyeOff size={16} />}
         </button>
+        {/* Compare Mode Toggle */}
+        <button
+          onClick={() => setCompareMode((v) => !v)}
+          className={`shrink-0 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all flex items-center gap-1.5 active:scale-[0.98] ${
+            compareMode
+              ? "bg-blue-600/20 border-blue-500/40 text-blue-400 hover:bg-blue-600/30"
+              : "bg-gray-800 border-gray-700/60 text-gray-400 hover:text-gray-200 hover:bg-gray-700/60"
+          }`}
+          title={t("disk.compare.toggle")}
+        >
+          <History className="w-3.5 h-3.5" />
+          <span>{t("disk.compare.toggle")}</span>
+        </button>
         {/* Batch selection controls */}
         {batchSelectionMode && (
           <div className="flex items-center gap-2 shrink-0">
@@ -923,9 +943,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
       ) : (
         <div className="rounded-xl bg-gray-800/40 border border-gray-700/30 overflow-hidden">
           {/* Table header */}
-          <div className={`grid gap-2 px-4 py-2.5 text-xs font-medium border-b border-gray-700/40 bg-gray-900/40 select-none ${
-            batchSelectionMode ? "grid-cols-[28px_1fr_100px_120px]" : "grid-cols-[1fr_100px_120px]"
-          }`}>
+          <div className={`grid gap-2 px-4 py-2.5 text-xs font-medium border-b border-gray-700/40 bg-gray-900/40 select-none ${gridLayoutClass}`}>
             {batchSelectionMode && (
               <div className="flex items-center justify-center">
                 <button onClick={toggleSelectAll} className="text-gray-500 hover:text-gray-300 transition-colors">
@@ -937,22 +955,24 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
                 </button>
               </div>
             )}
-            {(Object.keys(sortLabel) as SortField[]).map((field) => (
-              <button
-                key={field}
-                onClick={() => toggleSort(field)}
-                className={`flex items-center transition-colors ${
-                  field === "size" || field === "modified" ? "justify-end" : ""
-                } ${
-                  sortBy === field && sortOrder !== "none"
-                    ? "text-blue-400"
-                    : "text-gray-500 hover:text-gray-300"
-                }`}
-              >
-                <span>{sortLabel[field]}</span>
-                <SortIndicator field={field} />
-              </button>
-            ))}
+            {(Object.keys(sortLabel) as SortField[])
+              .filter((field) => field !== "sizeDiff" || compareMode)
+              .map((field) => (
+                <button
+                  key={field}
+                  onClick={() => toggleSort(field)}
+                  className={`flex items-center transition-colors ${
+                    field === "size" || field === "modified" || field === "sizeDiff" ? "justify-end" : ""
+                  } ${
+                    sortBy === field && sortOrder !== "none"
+                      ? "text-blue-400"
+                      : "text-gray-500 hover:text-gray-300"
+                  }`}
+                >
+                  <span>{sortLabel[field]}</span>
+                  <SortIndicator field={field} />
+                </button>
+              ))}
           </div>
 
           {/* Rows */}
@@ -961,11 +981,7 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
               return (
                 <div
                   key={entry.path}
-                className={`grid gap-2 px-4 py-3 text-sm items-center transition-colors border-b border-gray-700/20 last:border-b-0 ${
-                  batchSelectionMode
-                    ? "grid-cols-[28px_1fr_100px_120px]"
-                    : "grid-cols-[1fr_100px_120px]"
-                } ${
+                className={`grid gap-2 px-4 py-3 text-sm items-center transition-colors border-b border-gray-700/20 last:border-b-0 ${gridLayoutClass} ${
                   entry.isDir && !batchSelectionMode
                     ? "cursor-pointer hover:bg-gray-700/30"
                     : batchSelectionMode
@@ -1041,6 +1057,25 @@ export default function DiskAnalysis({ groups, onAddRule }: DiskAnalysisProps) {
                         formatFileSize(entry.size)
                       )}
                     </span>
+
+                    {/* Change (Size Diff) */}
+                    {compareMode && (
+                      <span className="text-right text-xs font-semibold shrink-0">
+                        {entry.sizeDiff === undefined || entry.sizeDiff === null ? (
+                          <span className="text-gray-600">-</span>
+                        ) : entry.sizeDiff > 0 ? (
+                          <span className="text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded flex items-center justify-end gap-0.5 ml-auto w-fit">
+                            +{formatFileSize(entry.sizeDiff)} ▲
+                          </span>
+                        ) : entry.sizeDiff < 0 ? (
+                          <span className="text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded flex items-center justify-end gap-0.5 ml-auto w-fit">
+                            -{formatFileSize(Math.abs(entry.sizeDiff))} ▼
+                          </span>
+                        ) : (
+                          <span className="text-gray-500">-</span>
+                        )}
+                      </span>
+                    )}
 
                     {/* Modified */}
                     <span className="text-right text-gray-500 text-xs">

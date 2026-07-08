@@ -42,6 +42,12 @@ function sortEntries(entries: FileEntry[], sortBy: SortField, sortOrder: SortOrd
         const bm = b.modified ?? "";
         return am.localeCompare(bm) * dir;
       }
+      case "sizeDiff": {
+        const ad = a.sizeDiff ?? 0;
+        const bd = b.sizeDiff ?? 0;
+        if (ad === bd) return 0;
+        return (ad - bd) * dir;
+      }
       default:
         return 0;
     }
@@ -194,7 +200,7 @@ export function useDiskAnalysis(): UseDiskAnalysisReturn {
             // Update in buffer if still there
             bufferRef.current = bufferRef.current.map((e) => {
               if (e.path === event.path) {
-                return { ...e, size: event.size, calculating: false };
+                return { ...e, size: event.size, sizeDiff: event.sizeDiff, calculating: false };
               }
               return e;
             });
@@ -203,7 +209,7 @@ export function useDiskAnalysis(): UseDiskAnalysisReturn {
             rawEntriesRef.current = rawEntriesRef.current.map((e) => {
               if (e.path === event.path) {
                 foundInRaw = true;
-                return { ...e, size: event.size, calculating: false };
+                return { ...e, size: event.size, sizeDiff: event.sizeDiff, calculating: false };
               }
               return e;
             });

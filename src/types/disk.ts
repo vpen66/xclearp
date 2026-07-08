@@ -10,6 +10,7 @@ export interface FileEntry {
   childrenCount: number | null; // directory child count
   calculating?: boolean;
   isWhitelisted?: boolean;
+  sizeDiff?: number;
 }
 
 export interface DiskUsage {
@@ -19,7 +20,7 @@ export interface DiskUsage {
   mountPoint: string;
 }
 
-export type SortField = "size" | "name" | "modified";
+export type SortField = "size" | "name" | "modified" | "sizeDiff";
 export type SortOrder = "asc" | "desc" | "none";
 
 // ─── Disk analysis streaming event types ─────────────────────────────────────
@@ -35,6 +36,7 @@ export interface DiskEntryUpdatedEvent {
   scanPath: string;
   path: string;
   size: number;
+  sizeDiff?: number;
 }
 
 export interface DiskProgressEvent {

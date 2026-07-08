@@ -196,6 +196,9 @@
   "disk.action.refresh": "刷新",
   "disk.table.header.name": "名称",
   "disk.table.header.size": "大小",
+  "disk.table.header.change": "变动",
+  "disk.compare.toggle": "对比变动",
+  "disk.compare.active": "正在与上次扫描进行对比",
   "disk.table.header.modified": "修改时间",
   "disk.usage.title": "磁盘使用情况",
   "disk.usage.parent_dir": "上一级目录: {size}",
@@ -424,7 +427,7 @@
   "settings.rules.editGroup": "编辑分组",
   "settings.group.edit.title": "编辑清理规则分组",
   "settings.group.save": "保存",
-  
+
   "settings.rules.editRule.title": "编辑清理规则",
   "settings.rules.addRule.title": "添加清理规则",
   "settings.rules.rule.name": "规则名称",
@@ -475,7 +478,7 @@
   "disk.batch.delete_success": "成功删除 {count} 项",
   "disk.batch.delete_partial": "删除完成，{success} 项成功，{fail} 项失败",
   "disk.batch.cancel_selection": "取消选择",
-  
+
   "disk.hidden.show": "显示隐藏文件",
   "disk.hidden.hide": "隐藏隐藏文件",
 

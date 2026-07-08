@@ -15,6 +15,7 @@ pub enum DiskEvent {
         scan_path: String,
         path: String,
         size: u64,
+        size_diff: Option<i64>,
     },
     #[serde(rename_all = "camelCase")]
     Progress {

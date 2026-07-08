@@ -70,6 +70,8 @@ pub struct FileEntry {
     pub calculating: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_whitelisted: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_diff: Option<i64>,
 }
 
 /// 磁盘使用概况
@@ -194,6 +196,7 @@ pub async fn list_directory(
                 children_count: None,
                 calculating: Some(false),
                 is_whitelisted: None,
+                size_diff: None,
             });
         }
         return Ok(entries);
@@ -296,6 +299,7 @@ pub async fn list_directory(
             children_count,
             calculating: Some(false),
             is_whitelisted,
+            size_diff: None,
         });
     }
 
@@ -303,6 +307,147 @@ pub async fn list_directory(
     entries.sort_by_key(|b| std::cmp::Reverse(b.size));
 
     Ok(entries)
+}
+
+fn path_to_filename(path: &str) -> String {
+    let mut filename = String::new();
+    for c in path.chars() {
+        if c.is_alphanumeric() {
+            filename.push(c);
+        } else if c == '/' || c == '\\' || c == ':' || c == '.' {
+            filename.push('_');
+        }
+    }
+    while filename.contains("__") {
+        filename = filename.replace("__", "_");
+    }
+    filename.trim_matches('_').to_string()
+}
+
+fn load_snapshot(
+    app: &tauri::AppHandle,
+    scan_path: &str,
+) -> std::collections::HashMap<String, u64> {
+    use tauri::Manager;
+    let filename_prefix = path_to_filename(scan_path);
+    if let Ok(config_dir) = app.path().app_config_dir() {
+        let snapshot_dir = config_dir.join("snapshots");
+        if snapshot_dir.exists() {
+            if let Ok(entries) = std::fs::read_dir(&snapshot_dir) {
+                let mut matches = Vec::new();
+                let prefix = format!("disk_snapshot_{}_", filename_prefix);
+                for entry in entries.flatten() {
+                    if let Ok(file_name) = entry.file_name().into_string() {
+                        if file_name.starts_with(&prefix) && file_name.ends_with(".json") {
+                            let date_part = &file_name[prefix.len()..(file_name.len() - 5)];
+                            matches.push((date_part.to_string(), entry.path()));
+                        }
+                    }
+                }
+                // Sort by date string descending
+                matches.sort_by(|a, b| b.0.cmp(&a.0));
+                if let Some((date_str, path)) = matches.first() {
+                    println!(
+                        "[Disk Snapshot] Loading latest snapshot from {:?} (date: {})",
+                        path, date_str
+                    );
+                    if let Ok(file) = std::fs::File::open(path) {
+                        if let Ok(map) = serde_json::from_reader::<
+                            _,
+                            std::collections::HashMap<String, u64>,
+                        >(file)
+                        {
+                            println!(
+                                "[Disk Snapshot] Loaded snapshot successfully. Keys count: {}",
+                                map.len()
+                            );
+                            return map;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    std::collections::HashMap::new()
+}
+
+fn save_snapshot(
+    app: &tauri::AppHandle,
+    scan_path: &str,
+    snapshot: &std::collections::HashMap<String, u64>,
+) {
+    use tauri::Manager;
+    let filename_prefix = path_to_filename(scan_path);
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    if let Ok(config_dir) = app.path().app_config_dir() {
+        let snapshot_dir = config_dir.join("snapshots");
+        if !snapshot_dir.exists() {
+            let _ = std::fs::create_dir_all(&snapshot_dir);
+        }
+        let snapshot_file =
+            snapshot_dir.join(format!("disk_snapshot_{}_{}.json", filename_prefix, today));
+        println!(
+            "[Disk Snapshot] Saving snapshot to file: {:?}, Keys count: {}",
+            snapshot_file,
+            snapshot.len()
+        );
+        if let Ok(file) = std::fs::File::create(&snapshot_file) {
+            if serde_json::to_writer(file, snapshot).is_ok() {
+                println!("[Disk Snapshot] Saved snapshot successfully.");
+            } else {
+                println!("[Disk Snapshot] Failed to serialize snapshot to file.");
+            }
+        } else {
+            println!("[Disk Snapshot] Failed to create snapshot file for writing.");
+        }
+
+        // Cleanup snapshots older than 30 days for this path
+        if let Ok(entries) = std::fs::read_dir(&snapshot_dir) {
+            let prefix = format!("disk_snapshot_{}_", filename_prefix);
+            let limit_date = (chrono::Local::now() - chrono::Duration::days(30))
+                .format("%Y-%m-%d")
+                .to_string();
+            for entry in entries.flatten() {
+                if let Ok(file_name) = entry.file_name().into_string() {
+                    if file_name.starts_with(&prefix) && file_name.ends_with(".json") {
+                        let date_part = &file_name[prefix.len()..(file_name.len() - 5)];
+                        if date_part < limit_date.as_str() {
+                            let _ = std::fs::remove_file(entry.path());
+                            println!(
+                                "[Disk Snapshot] Cleaned up old snapshot: {:?}",
+                                entry.path()
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct TaskGuard {
+    active_tasks: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    loop_finished: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    current_snapshot: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, u64>>>,
+    app: tauri::AppHandle,
+    scan_path: String,
+    cancel_token: tokio_util::sync::CancellationToken,
+}
+
+impl Drop for TaskGuard {
+    fn drop(&mut self) {
+        let remaining = self
+            .active_tasks
+            .fetch_sub(1, std::sync::atomic::Ordering::SeqCst)
+            - 1;
+        if remaining == 0
+            && self.loop_finished.load(std::sync::atomic::Ordering::SeqCst)
+            && !self.cancel_token.is_cancelled()
+        {
+            let snap = self.current_snapshot.lock().unwrap();
+            save_snapshot(&self.app, &self.scan_path, &snap);
+        }
+    }
 }
 
 /// 流式磁盘分析：逐个推送目录条目
@@ -345,6 +490,7 @@ pub async fn start_disk_analysis(
                     children_count: None,
                     calculating: Some(false),
                     is_whitelisted: None,
+                    size_diff: None,
                 };
                 let event = DiskEvent::EntryDiscovered {
                     scan_path: path_clone.clone(),
@@ -416,6 +562,16 @@ pub async fn start_disk_analysis(
     let cache_task = state.size_cache.clone();
 
     tauri::async_runtime::spawn(async move {
+        // Load snapshot
+        let last_snapshot = load_snapshot(&app_clone, &path_for_task);
+        // Shared map to collect final sizes for the new snapshot
+        let current_snapshot =
+            std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
+
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+        let active_tasks = std::sync::Arc::new(AtomicUsize::new(0));
+        let loop_finished = std::sync::Arc::new(AtomicBool::new(false));
+
         // Wrap in catch_unwind to prevent silent failures
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let start_time = Instant::now();
@@ -522,6 +678,10 @@ pub async fn start_disk_analysis(
 
                 let is_calculating = is_async_dir && cached_size.is_none();
 
+                // Compute size difference relative to last snapshot
+                let last_size = last_snapshot.get(&entry_path).cloned();
+                let size_diff = last_size.map(|last| size as i64 - last as i64);
+
                 let file_entry = FileEntry {
                     name,
                     path: entry_path.clone(),
@@ -532,7 +692,14 @@ pub async fn start_disk_analysis(
                     children_count,
                     calculating: Some(is_calculating),
                     is_whitelisted,
+                    size_diff,
                 };
+
+                // Add to current snapshot
+                {
+                    let mut snap = current_snapshot.lock().unwrap();
+                    snap.insert(entry_path.clone(), size);
+                }
 
                 let event = DiskEvent::EntryDiscovered {
                     scan_path: path_for_task.clone(),
@@ -549,8 +716,22 @@ pub async fn start_disk_analysis(
                     let wl_inner = wl_task.clone();
                     let cancel_token_inner = cancel_token_task.clone();
                     let cache_inner = cache_task.clone();
+                    let current_snapshot_inner = std::sync::Arc::clone(&current_snapshot);
+                    let last_size_for_update = last_snapshot.get(&entry_path).cloned();
+
+                    active_tasks.fetch_add(1, Ordering::SeqCst);
+                    let guard = TaskGuard {
+                        active_tasks: std::sync::Arc::clone(&active_tasks),
+                        loop_finished: std::sync::Arc::clone(&loop_finished),
+                        current_snapshot: std::sync::Arc::clone(&current_snapshot),
+                        app: app_inner.clone(),
+                        scan_path: scan_path_inner.clone(),
+                        cancel_token: cancel_token_inner.clone(),
+                    };
 
                     tauri::async_runtime::spawn(async move {
+                        let _guard = guard;
+
                         if cancel_token_inner.is_cancelled() {
                             return;
                         }
@@ -581,10 +762,19 @@ pub async fn start_disk_analysis(
                             cache.insert(entry_path_inner.clone(), size);
                         }
 
+                        // Save size to current snapshot
+                        {
+                            let mut snap = current_snapshot_inner.lock().unwrap();
+                            snap.insert(entry_path_inner.clone(), size);
+                        }
+
+                        let size_diff = last_size_for_update.map(|last| size as i64 - last as i64);
+
                         let update_event = DiskEvent::EntryUpdated {
                             scan_path: scan_path_inner,
                             path: entry_path_inner,
                             size,
+                            size_diff,
                         };
                         app_inner.emit("disk-event", &update_event).ok();
                     });
@@ -607,6 +797,12 @@ pub async fn start_disk_analysis(
                 duration_ms,
             };
             app_clone.emit("disk-event", &completed_event).ok();
+
+            loop_finished.store(true, Ordering::SeqCst);
+            if active_tasks.load(Ordering::SeqCst) == 0 && !cancel_token_task.is_cancelled() {
+                let snap = current_snapshot.lock().unwrap();
+                save_snapshot(&app_clone, &path_for_task, &snap);
+            }
         }));
 
         // If the task panicked, emit an error event
