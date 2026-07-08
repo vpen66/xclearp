@@ -18,6 +18,7 @@ export interface UseScanStreamReturn {
   cancelScan: () => Promise<void>;
   error: string | null;
   removeFile: (path: string) => void;
+  removeFiles: (paths: string[]) => void;
 }
 
 export function useScanStream(): UseScanStreamReturn {
@@ -154,6 +155,30 @@ export function useScanStream(): UseScanStreamReturn {
     });
   }, []);
 
+  const removeFiles = useCallback((paths: string[]) => {
+    const pathsSet = new Set(paths);
+    let sizeToRemove = 0;
+    let filesRemovedCount = 0;
+    setDiscoveredFiles((prev) =>
+      prev.filter((f) => {
+        if (pathsSet.has(f.path)) {
+          sizeToRemove += f.size;
+          filesRemovedCount += 1;
+          return false;
+        }
+        return true;
+      })
+    );
+    setScanSummary((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        totalFiles: Math.max(0, prev.totalFiles - filesRemovedCount),
+        totalSize: Math.max(0, prev.totalSize - sizeToRemove),
+      };
+    });
+  }, []);
+
   return {
     isScanning,
     scanProgress,
@@ -163,5 +188,6 @@ export function useScanStream(): UseScanStreamReturn {
     cancelScan,
     error,
     removeFile,
+    removeFiles,
   };
 }

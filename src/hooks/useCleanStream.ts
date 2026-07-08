@@ -20,7 +20,10 @@ export interface UseCleanStreamReturn {
   resetCleanState: () => void;
 }
 
-export function useCleanStream(onFileDeleted?: (path: string) => void): UseCleanStreamReturn {
+export function useCleanStream(
+  onFileDeleted?: (path: string) => void,
+  onCleanCompleted?: (paths: string[]) => void
+): UseCleanStreamReturn {
   const [isCleaning, setIsCleaning] = useState(false);
   const [cleanProgress, setCleanProgress] = useState<CleanProgress | null>(null);
   const [cleanSummary, setCleanSummary] = useState<CleanSummary | null>(null);
@@ -29,10 +32,16 @@ export function useCleanStream(onFileDeleted?: (path: string) => void): UseClean
   const opIdRef = useRef<string | null>(null);
   const totalFilesRef = useRef<number>(0);
   const onFileDeletedRef = useRef(onFileDeleted);
+  const onCleanCompletedRef = useRef(onCleanCompleted);
+  const targetPathsRef = useRef<string[]>([]);
 
   useEffect(() => {
     onFileDeletedRef.current = onFileDeleted;
   }, [onFileDeleted]);
+
+  useEffect(() => {
+    onCleanCompletedRef.current = onCleanCompleted;
+  }, [onCleanCompleted]);
 
   useEffect(() => {
     let active = true;
@@ -67,6 +76,10 @@ export function useCleanStream(onFileDeleted?: (path: string) => void): UseClean
           });
           setIsCleaning(false);
           opIdRef.current = null;
+          if (onCleanCompletedRef.current) {
+            onCleanCompletedRef.current(targetPathsRef.current);
+          }
+          targetPathsRef.current = [];
           break;
 
         case "error":
@@ -103,6 +116,7 @@ export function useCleanStream(onFileDeleted?: (path: string) => void): UseClean
     setCleanSummary(null);
     setTotalTargets(targets.length);
     totalFilesRef.current = targets.length;
+    targetPathsRef.current = targets.map((t) => t.path);
     setIsCleaning(true);
     opIdRef.current = null;
     try {
