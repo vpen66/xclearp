@@ -585,6 +585,13 @@ impl PlatformProvider for WindowsProvider {
         }
     }
 
+    fn move_all_to_trash(&self, paths: &[PathBuf]) -> Result<(), PlatformError> {
+        trash::delete_all(paths).map_err(|e| PlatformError {
+            message: format!("Failed to move paths to trash: {}", e),
+            path: None,
+        })
+    }
+
     fn empty_trash(&self) -> Result<(), PlatformError> {
         Ok(())
     }

@@ -18,7 +18,7 @@ function App() {
   const [currentPage, setCurrentPage] = useState<Page>("scan");
   const { groups, loading, error: groupsError, updateRule, addCustomRule, addGroup, deleteGroup, deleteRule, refresh } = useGroups();
   const scan = useScanStream();
-  const clean = useCleanStream(scan.removeFile);
+  const clean = useCleanStream(scan.removeFile, scan.removeFiles);
 
   const [generalSettings, setGeneralSettings] = useState(() => {
     const saved = localStorage.getItem("xclearp_settings");
