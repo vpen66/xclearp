@@ -62,6 +62,10 @@ pub trait PlatformProvider: Send + Sync {
     /// Move a file or directory to the system trash.
     fn move_to_trash(&self, path: &Path) -> Result<(), PlatformError>;
 
+    /// Move multiple files or directories to the system trash.
+    #[allow(dead_code)]
+    fn move_all_to_trash(&self, paths: &[PathBuf]) -> Result<(), PlatformError>;
+
     /// Empty the system trash/recycle bin.
     fn empty_trash(&self) -> Result<(), PlatformError>;
 

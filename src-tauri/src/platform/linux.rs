@@ -427,6 +427,13 @@ impl PlatformProvider for LinuxProvider {
         }
     }
 
+    fn move_all_to_trash(&self, paths: &[PathBuf]) -> Result<(), PlatformError> {
+        trash::delete_all(paths).map_err(|e| PlatformError {
+            message: format!("Failed to move paths to trash: {}", e),
+            path: None,
+        })
+    }
+
     fn empty_trash(&self) -> Result<(), PlatformError> {
         let trash_dir = Self::xdg_data_home().join("Trash");
         if !trash_dir.exists() {
