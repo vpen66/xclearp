@@ -59,12 +59,20 @@ impl Cleaner {
         let mut total_freed: u64 = 0;
         let mut errors: Vec<String> = Vec::new();
 
-        // 1. Group targets and map sizes
+        // 1. Group targets and map sizes, and count target files per directory in memory (O(N) bottom-up)
         let mut target_sizes = HashMap::new();
         let mut targets_to_delete = HashSet::new();
+        let mut target_counts: HashMap<PathBuf, usize> = HashMap::new();
+
         for target in targets {
             target_sizes.insert(target.path.clone(), target.size);
             targets_to_delete.insert(target.path.clone());
+
+            let mut parent = target.path.parent();
+            while let Some(p) = parent {
+                *target_counts.entry(p.to_path_buf()).or_insert(0) += 1;
+                parent = p.parent();
+            }
         }
 
         // 2. Find highest parent directories for all target files
@@ -87,19 +95,40 @@ impl Cleaner {
             }
         }
 
-        // 3. Optimize deletions using recursive directory collapse
+        // 3. Scan physical file counts under roots exactly once (O(N) single WalkDir)
+        let mut existing_counts: HashMap<PathBuf, usize> = HashMap::new();
+        for root in &final_roots {
+            let walker = walkdir::WalkDir::new(root).follow_links(false);
+            for entry in walker.into_iter().flatten() {
+                if entry.file_type().is_file() {
+                    let mut parent = entry.path().parent();
+                    while let Some(p) = parent {
+                        if p.starts_with(root) {
+                            *existing_counts.entry(p.to_path_buf()).or_insert(0) += 1;
+                            parent = p.parent();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Resolve deletable directories and files recursively but with O(1) checks and pruning
         let mut dirs_to_delete = Vec::new();
         let mut files_to_delete = Vec::new();
         for root in final_roots {
-            optimize_deletions(
+            resolve_deletable_paths(
                 &root,
+                &target_counts,
+                &existing_counts,
                 &targets_to_delete,
                 &mut dirs_to_delete,
                 &mut files_to_delete,
             );
         }
 
-        // 4. Separate optimized directories into trash vs direct remove
+        // 5. Separate optimized directories into trash vs direct remove
         let mut dirs_to_trash = Vec::new();
         let mut dirs_to_remove = Vec::new();
         for dir in dirs_to_delete {
@@ -110,7 +139,7 @@ impl Cleaner {
             }
         }
 
-        // 5. Separate remaining files into trash vs direct remove
+        // 6. Separate remaining files into trash vs direct remove
         let target_map: HashMap<PathBuf, &ScanTarget> =
             targets.iter().map(|t| (t.path.clone(), t)).collect();
         let mut files_to_trash = Vec::new();
@@ -228,14 +257,21 @@ impl Cleaner {
                         let _ = std::fs::create_dir_all(dir);
                     }
                     Ok(Err(e)) => {
-                        let error_msg =
-                            format!("Failed to remove directory {}: {}", dir.display(), e);
-                        let _ = self.event_bus.emit(CleanEvent::Error {
-                            op_id: op_id.to_string(),
-                            message: error_msg.clone(),
-                            recoverable: true,
-                        });
-                        errors.push(error_msg);
+                        if e.kind() == std::io::ErrorKind::NotFound {
+                            // Directory already missing, count as success and recreate empty directory
+                            total_deleted += file_count;
+                            total_freed += dir_size;
+                            let _ = std::fs::create_dir_all(dir);
+                        } else {
+                            let error_msg =
+                                format!("Failed to remove directory {}: {}", dir.display(), e);
+                            let _ = self.event_bus.emit(CleanEvent::Error {
+                                op_id: op_id.to_string(),
+                                message: error_msg.clone(),
+                                recoverable: true,
+                            });
+                            errors.push(error_msg);
+                        }
                     }
                     Err(join_err) => {
                         let error_msg = format!(
@@ -369,10 +405,13 @@ impl Cleaner {
                     }
 
                     join_set.spawn_blocking(move || {
-                        let res = std::fs::remove_file(&path).map_err(|e| e.to_string());
+                        let res = std::fs::remove_file(&path);
                         match res {
                             Ok(()) => Ok((path, file_size)),
-                            Err(e) => Err((path, file_size, e)),
+                            Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => {
+                                Ok((path, file_size))
+                            }
+                            Err(e) => Err((path, file_size, e.to_string())),
                         }
                     });
                 }
@@ -447,12 +486,8 @@ impl Cleaner {
 
             let mut delete_targets = Vec::new();
             for path in chunk {
-                if path.exists() {
-                    let file_size = target_sizes.get(path).cloned().unwrap_or(0);
-                    delete_targets.push((path.clone(), file_size));
-                } else {
-                    total_deleted += 1;
-                }
+                let file_size = target_sizes.get(path).cloned().unwrap_or(0);
+                delete_targets.push((path.clone(), file_size));
             }
 
             if !delete_targets.is_empty() {
@@ -514,10 +549,13 @@ impl Cleaner {
                     }
 
                     join_set.spawn_blocking(move || {
-                        let res = std::fs::remove_file(&path).map_err(|e| e.to_string());
+                        let res = std::fs::remove_file(&path);
                         match res {
                             Ok(()) => Ok((path, file_size)),
-                            Err(e) => Err((path, file_size, e)),
+                            Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => {
+                                Ok((path, file_size))
+                            }
+                            Err(e) => Err((path, file_size, e.to_string())),
                         }
                     });
                 }
@@ -600,39 +638,34 @@ impl Cleaner {
     }
 }
 
-fn can_delete_dir_completely(dir: &Path, targets_to_delete: &HashSet<PathBuf>) -> bool {
-    let walker = walkdir::WalkDir::new(dir).follow_links(false);
-    for entry in walker {
-        match entry {
-            Ok(e) => {
-                if e.file_type().is_file() && !targets_to_delete.contains(e.path()) {
-                    return false;
-                }
-            }
-            Err(_) => {
-                return false;
-            }
-        }
-    }
-    true
-}
-
-fn optimize_deletions(
+fn resolve_deletable_paths(
     dir: &Path,
+    target_counts: &HashMap<PathBuf, usize>,
+    existing_counts: &HashMap<PathBuf, usize>,
     targets_to_delete: &HashSet<PathBuf>,
     dirs_to_delete: &mut Vec<PathBuf>,
     files_to_delete: &mut Vec<PathBuf>,
 ) {
-    if can_delete_dir_completely(dir, targets_to_delete) {
+    let t_count = target_counts.get(dir).cloned().unwrap_or(0);
+    let e_count = existing_counts.get(dir).cloned().unwrap_or(0);
+
+    if t_count > 0 && t_count == e_count {
         dirs_to_delete.push(dir.to_path_buf());
-        return;
+        return; // Prune recursion
     }
 
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
-                optimize_deletions(&path, targets_to_delete, dirs_to_delete, files_to_delete);
+                resolve_deletable_paths(
+                    &path,
+                    target_counts,
+                    existing_counts,
+                    targets_to_delete,
+                    dirs_to_delete,
+                    files_to_delete,
+                );
             } else if targets_to_delete.contains(&path) {
                 files_to_delete.push(path);
             }
