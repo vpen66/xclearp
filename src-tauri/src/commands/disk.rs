@@ -401,10 +401,10 @@ fn save_snapshot(
             println!("[Disk Snapshot] Failed to create snapshot file for writing.");
         }
 
-        // Cleanup snapshots older than 30 days for this path
+        // Cleanup snapshots older than 7 days for this path
         if let Ok(entries) = std::fs::read_dir(&snapshot_dir) {
             let prefix = format!("disk_snapshot_{}_", filename_prefix);
-            let limit_date = (chrono::Local::now() - chrono::Duration::days(30))
+            let limit_date = (chrono::Local::now() - chrono::Duration::days(7))
                 .format("%Y-%m-%d")
                 .to_string();
             for entry in entries.flatten() {
@@ -746,8 +746,14 @@ pub async fn start_disk_analysis(
                         }
 
                         let cancel_token_blocking = cancel_token_inner.clone();
+                        let cache_inner_for_calc = cache_inner.clone();
                         let size = tauri::async_runtime::spawn_blocking(move || {
-                            calculate_dir_size(&dir_path_inner, &wl_inner, &cancel_token_blocking)
+                            calculate_dir_size(
+                                &dir_path_inner,
+                                &wl_inner,
+                                &cancel_token_blocking,
+                                &cache_inner_for_calc,
+                            )
                         })
                         .await
                         .unwrap_or(0);
@@ -1038,10 +1044,13 @@ fn calculate_dir_size_limited(path: &Path, limit: u64, wl: &Whitelist) -> u64 {
     total
 }
 
-/// 递归计算目录大小（无限制，完整准确）
-fn calculate_dir_size(path: &Path, wl: &Whitelist, cancel_token: &CancellationToken) -> u64 {
-    let mut total: u64 = 0;
-
+/// 递归计算目录大小（无限制，使用 ignore 并行遍历，并进行级联缓存）
+fn calculate_dir_size(
+    path: &Path,
+    wl: &Whitelist,
+    cancel_token: &CancellationToken,
+    size_cache: &std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, u64>>>,
+) -> u64 {
     // Pre-compile global excludes once
     let compiled_excludes: Vec<(glob::Pattern, bool)> = wl
         .global_excludes
@@ -1055,33 +1064,103 @@ fn calculate_dir_size(path: &Path, wl: &Whitelist, cancel_token: &CancellationTo
         })
         .collect();
 
-    let mut walker = WalkDir::new(path).follow_links(false).into_iter();
-    while let Some(entry) = walker.next() {
-        if cancel_token.is_cancelled() {
-            return 0;
-        }
-        let entry = match entry {
-            Ok(e) => e,
-            Err(_) => continue,
-        };
-        let p = entry.path();
+    let compiled_excludes = std::sync::Arc::new(compiled_excludes);
+    let total_size = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let subdir_sizes = std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
 
-        if let Some(show) = check_exclude_optimized(p, &compiled_excludes) {
-            if !show {
-                if p.is_dir() {
-                    walker.skip_current_dir();
+    let cancel_token_clone = cancel_token.clone();
+    let total_size_clone = total_size.clone();
+    let subdir_sizes_clone = subdir_sizes.clone();
+    let compiled_excludes_clone = compiled_excludes.clone();
+    let root_path = path.to_path_buf();
+
+    let mut builder = ignore::WalkBuilder::new(path);
+    builder
+        .follow_links(false)
+        .standard_filters(false) // Disable default .gitignore and hidden filters
+        .threads(4);
+
+    builder.build_parallel().run(move || {
+        let cancel_token = cancel_token_clone.clone();
+        let total_size = total_size_clone.clone();
+        let subdir_sizes = subdir_sizes_clone.clone();
+        let compiled_excludes = compiled_excludes_clone.clone();
+        let root = root_path.clone();
+
+        Box::new(move |entry| {
+            if cancel_token.is_cancelled() {
+                return ignore::WalkState::Quit;
+            }
+
+            let entry = match entry {
+                Ok(e) => e,
+                Err(_) => return ignore::WalkState::Continue,
+            };
+
+            let p = entry.path();
+
+            if let Some(show) = check_exclude_optimized(p, &compiled_excludes) {
+                if !show {
+                    if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
+                        return ignore::WalkState::Skip;
+                    }
+                    return ignore::WalkState::Continue;
                 }
-                continue;
             }
-        }
 
-        if let Ok(metadata) = std::fs::symlink_metadata(p) {
-            if !metadata.file_type().is_symlink() && metadata.is_file() {
-                total += get_file_size(&metadata);
+            if let Ok(metadata) = std::fs::symlink_metadata(p) {
+                if !metadata.file_type().is_symlink() && metadata.is_file() {
+                    let size = get_file_size(&metadata);
+                    total_size.fetch_add(size, std::sync::atomic::Ordering::SeqCst);
+
+                    // Cascade sizes to ancestor directories up to the scanned root
+                    let mut current = p.parent();
+                    let mut local_updates = Vec::new();
+                    while let Some(parent) = current {
+                        if parent.starts_with(&root) {
+                            local_updates.push(parent.to_string_lossy().to_string());
+                            if parent == root {
+                                break;
+                            }
+                            current = parent.parent();
+                        } else {
+                            break;
+                        }
+                    }
+
+                    if !local_updates.is_empty() {
+                        let mut map = subdir_sizes.lock().unwrap();
+                        for parent_str in local_updates {
+                            *map.entry(parent_str).or_insert(0) += size;
+                        }
+                    }
+                }
             }
+
+            ignore::WalkState::Continue
+        })
+    });
+
+    if cancel_token.is_cancelled() {
+        return 0;
+    }
+
+    let final_total = total_size.load(std::sync::atomic::Ordering::SeqCst);
+
+    // Merge into global size_cache
+    let final_subdir_sizes = {
+        let map = subdir_sizes.lock().unwrap();
+        map.clone()
+    };
+
+    {
+        let mut cache = size_cache.lock().unwrap();
+        for (dir_path, size) in final_subdir_sizes {
+            cache.insert(dir_path, size);
         }
     }
-    total
+
+    final_total
 }
 
 /// 计算目录的直接子条目数量
@@ -1152,6 +1231,123 @@ pub async fn clear_disk_analysis_cache(
     let mut cache = state.size_cache.lock().unwrap();
     cache.clear();
     Ok(())
+}
+
+/// 清理所有磁盘快照 JSON 文件
+#[command]
+pub async fn clear_disk_snapshots(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+    if let Ok(config_dir) = app.path().app_config_dir() {
+        let snapshot_dir = config_dir.join("snapshots");
+        if snapshot_dir.exists() {
+            if let Ok(entries) = std::fs::read_dir(&snapshot_dir) {
+                for entry in entries.flatten() {
+                    let _ = std::fs::remove_file(entry.path());
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// 获取指定路径的最近磁盘快照（前端秒开预览用）
+#[command]
+pub async fn get_disk_snapshot(
+    app: tauri::AppHandle,
+    engine: tauri::State<'_, crate::core::engine::CleanEngine>,
+    path: String,
+) -> Result<Vec<FileEntry>, String> {
+    #[cfg(windows)]
+    let dir_path = {
+        let mut p = path.replace('/', "\\");
+        if p.len() == 2 && p.ends_with(':') {
+            p.push('\\');
+        }
+        PathBuf::from(p)
+    };
+    #[cfg(not(windows))]
+    let dir_path = PathBuf::from(&path);
+
+    if !dir_path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let snapshot_map = load_snapshot(&app, &path);
+    let mut entries = Vec::new();
+
+    let wl = engine.whitelist().read().unwrap().clone();
+
+    // Pre-compile global excludes once
+    let compiled_excludes: Vec<(glob::Pattern, bool)> = wl
+        .global_excludes
+        .iter()
+        .filter(|pat| !wl.disabled_patterns.contains(*pat))
+        .filter_map(|pat| {
+            glob::Pattern::new(&pat.replace('\\', "/")).ok().map(|p| {
+                let eye_open = wl.show_in_disk_analysis.contains(pat);
+                (p, eye_open)
+            })
+        })
+        .collect();
+
+    for (entry_path_str, size) in snapshot_map {
+        let entry_path = Path::new(&entry_path_str);
+
+        if let Some(show) = check_exclude_optimized(entry_path, &compiled_excludes) {
+            if !show {
+                continue;
+            }
+        }
+
+        let name = entry_path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| entry_path_str.clone());
+
+        let mut is_dir = false;
+        let mut is_symlink = false;
+        let mut modified = None;
+
+        if let Ok(metadata) = std::fs::symlink_metadata(entry_path) {
+            is_symlink = metadata.file_type().is_symlink();
+            is_dir = metadata.is_dir();
+            if is_symlink {
+                if let Ok(target_metadata) = std::fs::metadata(entry_path) {
+                    is_dir = target_metadata.is_dir();
+                }
+            }
+            if let Ok(t) = metadata.modified() {
+                let datetime: chrono::DateTime<chrono::Utc> = t.into();
+                modified = Some(datetime.to_rfc3339());
+            }
+        }
+
+        let children_count = if is_dir {
+            Some(count_children(entry_path))
+        } else {
+            None
+        };
+
+        let is_whitelisted = match check_exclude_optimized(entry_path, &compiled_excludes) {
+            Some(true) => Some(true),
+            _ => None,
+        };
+
+        entries.push(FileEntry {
+            name,
+            path: entry_path_str,
+            size,
+            is_dir,
+            is_symlink: Some(is_symlink),
+            modified,
+            children_count,
+            calculating: Some(false),
+            is_whitelisted,
+            size_diff: Some(0),
+        });
+    }
+
+    Ok(entries)
 }
 
 /// 在系统文件管理器中打开指定路径
