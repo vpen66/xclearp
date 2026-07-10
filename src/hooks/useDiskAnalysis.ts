@@ -1,7 +1,7 @@
 /** Hook: manages disk analysis state — streaming event-driven directory analysis */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { startDiskAnalysis, listenToDiskEvents, getDiskUsage, getHomeDir, clearDiskAnalysisCache, getPlatform } from "../lib/ipc";
+import { startDiskAnalysis, listenToDiskEvents, getDiskUsage, getHomeDir, clearDiskAnalysisCache, getPlatform, getDiskSnapshot } from "../lib/ipc";
 import type { FileEntry, DiskUsage, SortField, SortOrder, DiskEvent } from "../types/disk";
 
 export interface UseDiskAnalysisReturn {
@@ -105,6 +105,9 @@ export function useDiskAnalysis(): UseDiskAnalysisReturn {
   // Track the current scan path to ignore stale events
   const currentScanPathRef = useRef<string>("");
 
+  // Track paths discovered during the current scan to filter out stale snapshot entries on completion
+  const discoveredPathsRef = useRef<Set<string>>(new Set());
+
   // Buffer for batch entry updates
   const bufferRef = useRef<FileEntry[]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -127,27 +130,31 @@ export function useDiskAnalysis(): UseDiskAnalysisReturn {
     const batch = bufferRef.current;
     console.log(`[DiskAnalysis] Flushing ${batch.length} entries, current raw count: ${rawEntriesRef.current.length}`);
     
-    // Check for duplicates in batch by path
-    const seenPaths = new Set<string>();
-    const uniqueBatch = batch.filter((e) => {
-      if (seenPaths.has(e.path)) {
-        console.warn(`[DiskAnalysis] Duplicate entry in batch: ${e.path}`);
-        return false;
+    // De-duplicate within batch by path (keep the latest one)
+    const uniqueBatchMap = new Map<string, FileEntry>();
+    for (const entry of batch) {
+      uniqueBatchMap.set(entry.path, entry);
+    }
+    
+    const newRawEntries = [...rawEntriesRef.current];
+    for (const [path, entry] of uniqueBatchMap) {
+      const idx = newRawEntries.findIndex((e) => e.path === path);
+      if (idx !== -1) {
+        // Update existing (e.g. updating a preview loaded from the snapshot)
+        newRawEntries[idx] = { 
+          ...newRawEntries[idx], 
+          ...entry,
+          calculating: entry.calculating 
+        };
+      } else {
+        // Add new entry
+        newRawEntries.push(entry);
       }
-      seenPaths.add(e.path);
-      return true;
-    });
-    
-    // Check for duplicates when merging with existing
-    const existingPaths = new Set(rawEntriesRef.current.map(e => e.path));
-    const trulyNew = uniqueBatch.filter(e => !existingPaths.has(e.path));
-    
-    if (trulyNew.length < uniqueBatch.length) {
-      console.warn(`[DiskAnalysis] ${uniqueBatch.length - trulyNew.length} entries already exist in state`);
+      discoveredPathsRef.current.add(path);
     }
     
     bufferRef.current = [];
-    rawEntriesRef.current = [...rawEntriesRef.current, ...trulyNew];
+    rawEntriesRef.current = newRawEntries;
     setEntries(sortEntries(rawEntriesRef.current, sortByRef.current, sortOrderRef.current));
   }, []);
 
@@ -204,6 +211,8 @@ export function useDiskAnalysis(): UseDiskAnalysisReturn {
               }
               return e;
             });
+            // Track updated path as discovered
+            discoveredPathsRef.current.add(event.path);
             // Update in rawEntriesRef
             let foundInRaw = false;
             rawEntriesRef.current = rawEntriesRef.current.map((e) => {
@@ -237,6 +246,8 @@ export function useDiskAnalysis(): UseDiskAnalysisReturn {
               console.log("[useDiskAnalysis] Ignored completed due to mismatch:", event.path, "vs", currentScanPathRef.current);
               break;
             }
+            // Remove any stale entries from snapshot preview that were not found in this scan
+            rawEntriesRef.current = rawEntriesRef.current.filter((e) => discoveredPathsRef.current.has(e.path));
             // Flush remaining buffer entries
             flushBuffer();
             stopFlushTimer();
@@ -317,6 +328,7 @@ export function useDiskAnalysis(): UseDiskAnalysisReturn {
     console.log("[useDiskAnalysis] fetchEntries RUNNING with path:", path);
     // Update current scan path to track which scan we're processing
     currentScanPathRef.current = path;
+    discoveredPathsRef.current.clear();
     
     setLoading(true);
     setError(null);
@@ -326,6 +338,19 @@ export function useDiskAnalysis(): UseDiskAnalysisReturn {
     rawEntriesRef.current = [];
     bufferRef.current = [];
     startFlushTimer();
+
+    // Load snapshot first for preview
+    try {
+      const snapshotEntries = await getDiskSnapshot(path);
+      if (snapshotEntries && snapshotEntries.length > 0 && currentScanPathRef.current === path) {
+        console.log(`[useDiskAnalysis] Loaded preview from snapshot, count: ${snapshotEntries.length}`);
+        rawEntriesRef.current = snapshotEntries;
+        setEntries(sortEntries(snapshotEntries, sortByRef.current, sortOrderRef.current));
+      }
+    } catch (err) {
+      console.warn("Failed to load disk snapshot preview:", err);
+    }
+
     try {
       await startDiskAnalysis(path);
     } catch (err) {

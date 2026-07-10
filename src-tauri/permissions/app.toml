@@ -49,6 +49,11 @@ description = "Enables the start_disk_analysis command"
 commands.allow = ["start_disk_analysis"]
 
 [[permission]]
+identifier = "allow-get-disk-snapshot"
+description = "Enables the get_disk_snapshot command"
+commands.allow = ["get_disk_snapshot"]
+
+[[permission]]
 identifier = "allow-add-group"
 description = "Enables the add_group command"
 commands.allow = ["add_group"]
@@ -82,6 +87,11 @@ commands.allow = ["import_rules"]
 identifier = "allow-clear-disk-analysis-cache"
 description = "Enables the clear_disk_analysis_cache command"
 commands.allow = ["clear_disk_analysis_cache"]
+
+[[permission]]
+identifier = "allow-clear-disk-snapshots"
+description = "Enables the clear_disk_snapshots command"
+commands.allow = ["clear_disk_snapshots"]
 
 [[permission]]
 identifier = "allow-open-path"
@@ -213,12 +223,14 @@ permissions = [
   "allow-list-directory",
   "allow-get-disk-usage",
   "allow-start-disk-analysis",
+  "allow-get-disk-snapshot",
   "allow-add-group",
   "allow-delete-group",
   "allow-get-whitelist",
   "allow-update-whitelist",
   "allow-delete-path",
   "allow-clear-disk-analysis-cache",
+  "allow-clear-disk-snapshots",
   "allow-open-path",
   "allow-get-platform",
   "allow-check-disk-permissions",

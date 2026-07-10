@@ -5,7 +5,7 @@ import type { RuleGroup, CleanRule } from "../types/index";
 import RuleEditor from "./RuleEditor";
 import WhitelistManager from "./WhitelistManager";
 import { useToast } from "./Toast";
-import { checkDiskPermissions, openSystemSettingsPane, type PermissionStatus, getPlatform } from "../lib/ipc";
+import { checkDiskPermissions, openSystemSettingsPane, type PermissionStatus, getPlatform, clearDiskSnapshots } from "../lib/ipc";
 import { useI18n } from "../lib/i18n";
 import {
   Sliders,
@@ -129,6 +129,8 @@ export default function SettingsView({
   // Disk permissions check state
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus | null>(null);
   const [checkingPermissions, setCheckingPermissions] = useState(false);
+  const [clearingSnapshots, setClearingSnapshots] = useState(false);
+  const [showClearSnapshotsConfirm, setShowClearSnapshotsConfirm] = useState(false);
 
   const fetchPermissions = async () => {
     setCheckingPermissions(true);
@@ -605,6 +607,22 @@ export default function SettingsView({
                       )}
                     </div>
                   )}
+                </div>
+
+                {/* Clear Snapshots Card */}
+                <div className="flex items-start justify-between p-4 rounded-xl bg-gray-800/20 border border-gray-800/50 hover:bg-gray-800/30 transition-all duration-150">
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-medium text-gray-200">{t("settings.general.clearSnapshots")}</h4>
+                    <p className="text-xs text-gray-400">{t("settings.general.clearSnapshots.desc")}</p>
+                  </div>
+                  <button
+                    onClick={() => setShowClearSnapshotsConfirm(true)}
+                    disabled={clearingSnapshots}
+                    className="px-3 py-1.5 bg-red-950/40 hover:bg-red-900/40 disabled:opacity-50 text-red-400 rounded-lg font-semibold transition-all border border-red-900/30 hover:border-red-900/50 flex items-center gap-1.5 text-xs shrink-0"
+                  >
+                    <Trash2 size={14} />
+                    {clearingSnapshots ? t("settings.general.clearSnapshots.clearing") : t("settings.general.clearSnapshots.btn")}
+                  </button>
                 </div>
               </div>
             </div>
@@ -1143,6 +1161,48 @@ export default function SettingsView({
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
               >
                 {t("modal.delete")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear Snapshots Confirmation Modal */}
+      {showClearSnapshotsConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm p-5 rounded-xl bg-gray-900 border border-gray-800 shadow-2xl animate-fade-in">
+            <h3 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
+              <ShieldAlert className="text-red-500" size={18} /> {t("settings.general.clearSnapshots")}
+            </h3>
+            <p className="text-sm text-gray-400 mb-4 leading-relaxed">
+              {t("settings.confirm.clear_snapshots")}
+            </p>
+            <div className="flex justify-end gap-2 text-xs">
+              <button
+                onClick={() => setShowClearSnapshotsConfirm(false)}
+                className="px-4 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                disabled={clearingSnapshots}
+              >
+                {t("modal.cancel")}
+              </button>
+              <button
+                onClick={async () => {
+                  setClearingSnapshots(true);
+                  try {
+                    await clearDiskSnapshots();
+                    toast.success(t("settings.toast.clear_snapshots_success"));
+                    setShowClearSnapshotsConfirm(false);
+                  } catch (e) {
+                    console.error("Failed to clear snapshots:", e);
+                    toast.error(t("settings.toast.clear_snapshots_failed").replace("{error}", String(e)));
+                  } finally {
+                    setClearingSnapshots(false);
+                  }
+                }}
+                disabled={clearingSnapshots}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-800/50 disabled:text-gray-400 text-white rounded-lg font-medium transition-colors flex items-center gap-1"
+              >
+                {clearingSnapshots ? t("settings.general.clearSnapshots.clearing") : t("settings.general.clearSnapshots.btn")}
               </button>
             </div>
           </div>

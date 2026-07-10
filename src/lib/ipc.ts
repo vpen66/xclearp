@@ -127,9 +127,19 @@ export async function startDiskAnalysis(path: string): Promise<void> {
   return invoke("start_disk_analysis", { path });
 }
 
+/** Get disk snapshot for a path (used for instant preview). */
+export async function getDiskSnapshot(path: string): Promise<FileEntry[]> {
+  return invoke<FileEntry[]>("get_disk_snapshot", { path });
+}
+
 /** Clear the disk analysis folder size cache. */
 export async function clearDiskAnalysisCache(): Promise<void> {
   return invoke("clear_disk_analysis_cache");
+}
+
+/** Clear all physical disk snapshot files. */
+export async function clearDiskSnapshots(): Promise<void> {
+  return invoke("clear_disk_snapshots");
 }
 
 /**

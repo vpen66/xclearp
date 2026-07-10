@@ -37,6 +37,13 @@
   "settings.general.theme.system": "跟随系统",
   "settings.general.language": "界面语言",
   "settings.general.language.desc": "选择应用程序的显示语言",
+  "settings.general.clearSnapshots": "清理磁盘快照数据",
+  "settings.general.clearSnapshots.desc": "手动清空磁盘分析功能在本地保存的所有历史大小快照缓存文件",
+  "settings.general.clearSnapshots.clearing": "清理中...",
+  "settings.general.clearSnapshots.btn": "清空快照数据",
+  "settings.confirm.clear_snapshots": "确定要清空所有的磁盘历史快照吗？清空后将无法使用之前的历史变动对比，进入目录时也会重新执行完整扫描。",
+  "settings.toast.clear_snapshots_success": "成功清空所有磁盘分析快照数据",
+  "settings.toast.clear_snapshots_failed": "清空快照失败: {error}",
 
   "settings.permissions.title": "系统磁盘访问权限",
   "settings.permissions.desc": "由于操作系统沙盒与权限保护，部分系统缓存的检索和清理需要额外的授权。",
