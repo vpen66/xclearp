@@ -14,7 +14,7 @@ tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7"
 glob = "0.3"
 walkdir = "2"
-dirs = "5"
+dirs = "6"
 ignore = "0.4"
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
@@ -31,5 +31,5 @@ objc2 = "0.6.4"
 objc2-foundation = { version = "0.3.2", features = ["NSURL", "NSString", "NSDictionary", "NSArray", "NSError"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-winreg = "0.52"
+winreg = "0.55"
 
