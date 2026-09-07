@@ -59,7 +59,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # softprops/action-gh-release is the most popular community action for
       # GitHub Releases, with 10k+ stars and active maintenance.
@@ -67,7 +67,7 @@ jobs:
       # generation based on merged PRs and commits since the last tag.
       - name: Create draft release
         id: create-release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
@@ -146,7 +146,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # -----------------------------------------------------------------------
       # Project Setup
@@ -216,7 +216,7 @@ jobs:
       #   5. Apple Notarization (when APPLE_API_KEY is set)
       #   6. Tauri Updater artifacts (when TAURI_SIGNING_PRIVATE_KEY is set)
       - name: Build and upload release artifacts
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
