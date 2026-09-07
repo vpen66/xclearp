@@ -39,13 +39,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Initialize CodeQL for JavaScript/TypeScript analysis.
       # CodeQL builds an AST database of the codebase, then runs security
       # queries against it to find vulnerabilities like XSS, injection, etc.
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: javascript-typescript
           # Use the default query suite (security-extended) for broad coverage.
@@ -54,10 +54,10 @@ jobs:
       # Autobuild detects the build system and runs an appropriate build.
       # For our project, it will detect the Vite/TypeScript setup.
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@v4
 
       # Run the CodeQL queries and upload results to the Security tab.
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: '/language:javascript-typescript'
